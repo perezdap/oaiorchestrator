@@ -1,0 +1,122 @@
+name: tdd-feature
+description: Implement a new feature using test-driven development — tests are written first, then the implementation is driven by passing them.
+
+inputs:
+  task: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Decompose the feature request into concrete acceptance criteria, a test plan, and implementation phases.
+      Identify edge cases and failure modes that tests must cover.
+      Produce plan.md and acceptance.md before any code is written.
+  test-writer:
+    type: test-writer
+    model: auto
+    instructions: |
+      Write failing tests that specify the desired behaviour of the feature before any implementation exists.
+      Prefer Vitest for TypeScript projects and Pester for PowerShell projects.
+      Tests must cover the happy path, edge cases, and error conditions identified in plan.md.
+      Do not write any production code — only tests.
+  implementer:
+    type: implementer
+    model: auto
+    instructions: |
+      Write the minimum production code required to make all failing tests pass.
+      Do not modify test files.
+      Keep changes small and reviewable.
+  reviewer:
+    type: reviewer
+    model: auto
+    instructions: |
+      Review both tests and implementation for correctness, maintainability, and security.
+      Verify that tests actually exercise the stated requirements and cannot pass trivially.
+      Flag any test that could be deleted without reducing coverage of real behaviour.
+  verifier:
+    type: verifier
+    model: auto
+    instructions: |
+      Run the full test suite and confirm all tests pass.
+      Check that no pre-existing tests were broken by the new implementation.
+
+phases:
+  - id: intake
+    agent: planner
+    objective: Analyse the feature request and produce a plan with explicit acceptance criteria and a test outline.
+    outputs:
+      - plan.md
+      - acceptance.md
+
+  - id: write-tests
+    agent: test-writer
+    objective: Write failing tests that will pass once the feature is correctly implemented.
+    dependsOn:
+      - intake
+    inputs:
+      - plan.md
+      - acceptance.md
+    outputs:
+      - test-plan.md
+
+  - id: implement
+    agent: implementer
+    objective: Implement the feature so that all tests written in write-tests now pass.
+    dependsOn:
+      - write-tests
+    inputs:
+      - plan.md
+      - test-plan.md
+    outputs:
+      - implementation-summary.md
+
+  - id: review
+    agent: reviewer
+    objective: Review tests and implementation together for quality, coverage, and missed requirements.
+    dependsOn:
+      - implement
+    inputs:
+      - plan.md
+      - test-plan.md
+      - implementation-summary.md
+    outputs:
+      - review.md
+
+  - id: verify
+    agent: verifier
+    objective: Run the test suite and confirm all tests pass with no regressions.
+    dependsOn:
+      - review
+
+acceptance:
+  maxRetries: 3
+  retryPhase: implement
+  criteria:
+    - id: tests-pass
+      type: test_result
+      command: npm test
+      parser: vitest
+      required: true
+    - id: plan-exists
+      type: markdown_artifact
+      path: plan.md
+      minLength: 50
+      required: true
+    - id: test-plan-exists
+      type: markdown_artifact
+      path: test-plan.md
+      minLength: 50
+      required: true
+    - id: implementation-summary-exists
+      type: markdown_artifact
+      path: implementation-summary.md
+      required: true
+    - id: no-regressions
+      type: agent_review
+      prompt: >
+        Confirm that no pre-existing tests were removed or weakened and that the new tests
+        genuinely exercise the stated acceptance criteria rather than only asserting mocks.
+      required: false

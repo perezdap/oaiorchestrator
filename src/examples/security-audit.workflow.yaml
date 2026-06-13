@@ -1,0 +1,97 @@
+name: security-audit
+description: Perform a structured security audit of a codebase — covering dependency vulnerabilities, secret scanning, code review, and remediation planning.
+
+inputs:
+  repoPath: string
+  scope: string
+  executionMode: local
+
+agents:
+  researcher:
+    type: researcher
+    model: auto
+    instructions: |
+      Survey the repository for known vulnerability patterns: outdated dependencies, exposed secrets,
+      insecure defaults, and unsafe shell or file operations. Produce a structured inventory.
+  security-reviewer:
+    type: security-reviewer
+    model: auto
+    instructions: |
+      Perform a deep static audit of the codebase. Focus on injection risks, authentication flaws,
+      privilege escalation paths, unsafe deserialization, and missing input validation.
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Prioritize findings by severity (critical, high, medium, low) and produce a remediation plan
+      with estimated effort and acceptance criteria for each item.
+  documenter:
+    type: documenter
+    model: auto
+    instructions: |
+      Produce an executive-summary security report and a developer-facing remediation checklist.
+
+phases:
+  - id: survey
+    agent: researcher
+    objective: |
+      Scan the scope area named in Context for security signals: outdated packages, hardcoded secrets,
+      broad file permissions, and dangerous command usage.
+    outputs:
+      - survey.md
+
+  - id: static-audit
+    agent: security-reviewer
+    objective: |
+      Perform a static security review of the source code within the scope area identified in the survey.
+      Document every finding with file path, line reference, severity, and recommended fix.
+    dependsOn:
+      - survey
+    outputs:
+      - audit-findings.md
+
+  - id: remediation-plan
+    agent: planner
+    objective: |
+      Using the audit findings, produce a prioritized remediation plan grouped by severity.
+      Include acceptance criteria for each fix and an overall definition of done.
+    dependsOn:
+      - static-audit
+    outputs:
+      - remediation-plan.md
+      - acceptance.md
+
+  - id: report
+    agent: documenter
+    objective: |
+      Write a security report with an executive summary, key risk areas, remediation timeline,
+      and a developer checklist. Include references to audit-findings.md and remediation-plan.md.
+    dependsOn:
+      - remediation-plan
+    outputs:
+      - security-report.md
+
+acceptance:
+  maxRetries: 2
+  retryPhase: static-audit
+  criteria:
+    - id: audit-findings-exist
+      type: markdown_artifact
+      path: audit-findings.md
+      required: true
+    - id: remediation-plan-exists
+      type: markdown_artifact
+      path: remediation-plan.md
+      required: true
+    - id: no-hardcoded-secrets
+      type: agent_review
+      prompt: |
+        Confirm that no API keys, tokens, passwords, or other secrets are hardcoded in source files
+        within the audited scope. Credentials should be read from environment variables or a secrets manager.
+      required: true
+    - id: security-report-review
+      type: agent_review
+      prompt: |
+        Confirm the security report covers all critical and high findings from audit-findings.md
+        and that the remediation plan assigns severity and effort to each item.
+      required: false

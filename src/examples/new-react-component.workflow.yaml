@@ -1,0 +1,72 @@
+name: new-react-component
+description: Design, implement, test, and document a new React component.
+
+inputs:
+  componentName: string
+  description: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  designer:
+    type: planner
+    model: auto
+    instructions: |
+      Design the component API, props, styling approach, and accessibility requirements.
+  implementer:
+    type: implementer
+    model: auto
+    instructions: |
+      Implement the React component, including TSX, styles, and any hooks.
+  tester:
+    type: verifier
+    model: auto
+    instructions: |
+      Write unit tests, integration tests, and Storybook stories if applicable.
+  documenter:
+    type: documenter
+    model: auto
+    instructions: |
+      Create or update component documentation and examples.
+
+phases:
+  - id: design
+    agent: designer
+    objective: Define component specification and requirements.
+    outputs:
+      - design.md
+      - acceptance.md
+
+  - id: implement
+    agent: implementer
+    objective: Build the component.
+    dependsOn:
+      - design
+
+  - id: test
+    agent: tester
+    objective: Add comprehensive tests.
+    dependsOn:
+      - implement
+
+  - id: document
+    agent: documenter
+    objective: Document the component.
+    dependsOn:
+      - test
+
+acceptance:
+  maxRetries: 2
+  criteria:
+    - id: tests-pass
+      type: command
+      command: npm test -- src/components/NewComponent
+      required: true
+    - id: component-exists
+      type: file_exists
+      path: src/components/NewComponent.tsx
+      required: true
+    - id: storybook-ready
+      type: agent_review
+      prompt: Verify Storybook story is present and component is well-documented.
+      required: false

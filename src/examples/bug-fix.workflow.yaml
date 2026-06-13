@@ -1,0 +1,72 @@
+name: bug-fix
+description: Diagnose, fix, test, and verify a reported bug.
+
+inputs:
+  bugDescription: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  diagnoser:
+    type: planner
+    model: auto
+    instructions: |
+      Analyze the bug report, reproduce steps, identify root cause, and create a fix plan with acceptance criteria.
+  fixer:
+    type: implementer
+    model: auto
+    instructions: |
+      Implement the minimal fix for the bug. Keep changes focused and safe.
+  tester:
+    type: verifier
+    model: auto
+    instructions: |
+      Create or update tests to cover the bug and verify the fix works.
+  reviewer:
+    type: reviewer
+    model: auto
+    instructions: |
+      Review the fix for side effects, code quality, and completeness.
+
+phases:
+  - id: diagnose
+    agent: diagnoser
+    objective: Understand the bug and plan the fix.
+    outputs:
+      - diagnosis.md
+      - fix-plan.md
+      - acceptance.md
+
+  - id: implement-fix
+    agent: fixer
+    objective: Apply the fix.
+    dependsOn:
+      - diagnose
+
+  - id: add-tests
+    agent: tester
+    objective: Ensure the bug is covered by tests and fixed.
+    dependsOn:
+      - implement-fix
+
+  - id: review
+    agent: reviewer
+    objective: Final code review of the fix.
+    dependsOn:
+      - add-tests
+
+acceptance:
+  maxRetries: 3
+  criteria:
+    - id: tests-pass
+      type: command
+      command: npm test
+      required: true
+    - id: diagnosis-ready
+      type: markdown_artifact
+      path: diagnosis.md
+      required: true
+    - id: no-regressions
+      type: agent_review
+      prompt: Confirm the fix resolves the bug without introducing new issues.
+      required: true

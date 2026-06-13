@@ -1,0 +1,145 @@
+name: safe-refactor
+description: Refactor existing code for improved structure, readability, or performance while guaranteeing no observable behaviour changes through automated safety checks.
+
+inputs:
+  task: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  researcher:
+    type: researcher
+    model: auto
+    instructions: |
+      Survey the code targeted for refactoring: understand its public API surface, call sites,
+      dependencies, and any existing tests. Identify areas with no test coverage that could
+      hide regressions. Document findings in research.md.
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Produce a refactoring plan that is strictly behaviour-preserving.
+      Enumerate the structural changes to make (rename, extract, inline, split module, etc.)
+      and define explicit constraints: no new features, no interface changes unless agreed.
+      Identify which tests must remain green throughout.
+  test-writer:
+    type: test-writer
+    model: auto
+    instructions: |
+      Add characterisation tests for any logic that has no automated coverage, so that
+      regressions will be caught during refactoring.
+      Use Vitest for TypeScript and Pester for PowerShell.
+      Do not refactor production code in this phase.
+  refactorer:
+    type: refactorer
+    model: auto
+    instructions: |
+      Apply only the structural changes listed in plan.md.
+      Do not add new features or change observable behaviour.
+      Keep commits small and focused on one refactoring concern at a time.
+      Prefer automated refactoring tools (rename symbol, extract function) over manual edits.
+  reviewer:
+    type: reviewer
+    model: auto
+    instructions: |
+      Verify that the refactored code is structurally cleaner without any behaviour changes.
+      Check that all public APIs and exported symbols remain compatible.
+      Flag any change that adds, removes, or alters observable side effects.
+  security:
+    type: security-reviewer
+    model: auto
+    instructions: |
+      Audit the refactored code for security regressions introduced during restructuring,
+      such as removed sanitisation steps, altered access control paths, or new injection points.
+
+phases:
+  - id: research
+    agent: researcher
+    objective: Understand the current code, its test coverage, and call sites before touching anything.
+    outputs:
+      - research.md
+
+  - id: plan-refactor
+    agent: planner
+    objective: Produce a scoped, behaviour-preserving refactoring plan with explicit constraints.
+    dependsOn:
+      - research
+    inputs:
+      - research.md
+    outputs:
+      - plan.md
+      - acceptance.md
+
+  - id: add-coverage
+    agent: test-writer
+    objective: Write characterisation tests for uncovered paths to catch regressions during refactoring.
+    dependsOn:
+      - plan-refactor
+    inputs:
+      - research.md
+      - plan.md
+    outputs:
+      - test-plan.md
+
+  - id: refactor
+    agent: refactorer
+    objective: Apply the structural changes from plan.md without altering observable behaviour.
+    dependsOn:
+      - add-coverage
+    inputs:
+      - plan.md
+      - research.md
+    outputs:
+      - refactor-summary.md
+
+  - id: review
+    agent: reviewer
+    objective: Confirm the refactoring is clean, complete, and behaviour-preserving.
+    dependsOn:
+      - refactor
+    inputs:
+      - plan.md
+      - refactor-summary.md
+    outputs:
+      - review.md
+
+  - id: security-check
+    agent: security
+    objective: Verify no security properties were unintentionally weakened during restructuring.
+    dependsOn:
+      - review
+    outputs:
+      - security-review.md
+
+acceptance:
+  maxRetries: 2
+  retryPhase: refactor
+  criteria:
+    - id: tests-pass
+      type: test_result
+      command: npm test
+      parser: vitest
+      required: true
+    - id: lint-pass
+      type: command
+      command: npm run lint
+      required: true
+    - id: plan-exists
+      type: markdown_artifact
+      path: plan.md
+      minLength: 50
+      required: true
+    - id: refactor-summary-exists
+      type: markdown_artifact
+      path: refactor-summary.md
+      required: true
+    - id: security-review-exists
+      type: markdown_artifact
+      path: security-review.md
+      required: true
+    - id: no-behaviour-change
+      type: agent_review
+      prompt: >
+        Confirm that the refactored code has no observable behaviour changes: same inputs
+        produce the same outputs, public APIs are intact, and no logic was silently dropped.
+      required: true

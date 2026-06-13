@@ -1,0 +1,5 @@
+# Cursor Orchestrator configuration
+defaultExecutionMode: local
+runsDirectory: .runs
+
+# Set CURSOR_API_KEY in your environment for Cursor SDK runners

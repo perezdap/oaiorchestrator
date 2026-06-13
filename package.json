@@ -1,0 +1,52 @@
+{
+  "name": "oaiorchestrator",
+  "version": "0.2.0",
+  "description": "Windows-first, OpenAI-compatible agent orchestration framework",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "orchestrator": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --exclude src/tests/sdk/**",
+    "test:fast": "vitest run --exclude src/tests/sdk/**",
+    "test:full": "vitest run",
+    "test:sdk": "vitest run src/tests/sdk",
+    "test:watch": "vitest --exclude src/tests/sdk/**",
+    "dev": "tsx src/cli.ts",
+    "validate": "tsx src/cli.ts validate",
+    "example:programmatic": "tsx src/examples/programmatic-usage.example.ts",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "openai",
+    "llm",
+    "chat-completions",
+    "orchestration",
+    "agent",
+    "workflow",
+    "windows"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^13.1.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "src/examples"
+  ]
+}

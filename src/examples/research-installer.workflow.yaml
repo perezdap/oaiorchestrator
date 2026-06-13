@@ -1,0 +1,181 @@
+name: research-installer
+description: >-
+  Research a Windows application installer and verify every claim host-side.
+  The LLM proposes a download URL and SHA256; acceptance criteria download the
+  file, recompute the hash, check the Authenticode signature, and optionally
+  run an external verification script. The run only succeeds when the host
+  proves the claims.
+
+# Usage (PowerShell):
+#   $env:OPENAI_API_KEY = "sk-..."
+#   $env:ORCH_VERIFY_SCRIPT = "C:\path\to\Verify-Installer.ps1"   # optional
+#   orchestrator run `
+#     --workflow .\src\examples\research-installer.workflow.yaml `
+#     --task "Research the latest 7-Zip x64 MSI installer" `
+#     --repo-path .
+#
+# Acceptance commands receive $env:ORCH_RUN_ID and $env:ORCH_ARTIFACTS_DIR
+# pointing at the active run, so checks never read artifacts from other runs.
+
+inputs:
+  task: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  researcher:
+    type: researcher
+    model: auto
+    instructions: |
+      You research Windows application installers for enterprise packaging.
+      Find the official vendor download for the requested application: the
+      direct download URL, the published SHA256 hash (from the vendor page,
+      release notes, or winget-pkgs manifest), silent install switches, and
+      the vendor source page you used.
+
+      You cannot download or verify anything yourself. The host will download
+      the file and recompute the hash; if your SHA256 is wrong the phase fails
+      and you will be asked to retry. Prefer vendor-published hashes over
+      third-party mirrors.
+
+      Emit your findings as a fenced block tagged with the artifact filename:
+      ```json name=installer-research.json
+      {
+        "appName": "...",
+        "vendor": "...",
+        "downloadUrl": "https://...",
+        "expectedSha256": "...",
+        "silentArgs": "...",
+        "sourcePageUrl": "https://..."
+      }
+      ```
+
+phases:
+  - id: research
+    agent: researcher
+    objective: >-
+      Research the requested installer and produce installer-research.json
+      with the official download URL, vendor-published SHA256, and silent
+      install switches.
+    skills:
+      - researcher
+    outputs:
+      - installer-research.json
+    maxRetries: 2
+
+acceptance:
+  maxRetries: 2
+  retryPhase: research
+  criteria:
+    - id: research-json-valid
+      type: command
+      description: installer-research.json exists in this run's artifacts and parses with the required fields.
+      command: |
+        $json = Join-Path $env:ORCH_ARTIFACTS_DIR 'installer-research.json'
+        if (-not (Test-Path $json)) { Write-Error "installer-research.json not found in $env:ORCH_ARTIFACTS_DIR"; exit 1 }
+        $data = Get-Content $json -Raw | ConvertFrom-Json
+        foreach ($field in 'appName','downloadUrl','expectedSha256') {
+          if (-not $data.$field) { Write-Error "Missing field: $field"; exit 1 }
+        }
+        Write-Output "Research artifact valid: $json"
+      required: true
+
+    - id: download-and-hash-match
+      type: command
+      description: >-
+        Host validates the model-supplied URL (https + non-private host),
+        downloads the proposed installer, and recomputes the SHA256. Fails on
+        any mismatch. The model proposes; the host proves.
+      timeoutMs: 600000
+      command: |
+        $json = Join-Path $env:ORCH_ARTIFACTS_DIR 'installer-research.json'
+        $data = Get-Content $json -Raw | ConvertFrom-Json
+
+        # Trust boundary: the URL (and any redirect target) came from the model.
+        # Require https and reject loopback/private/link-local/ULA hosts.
+        #
+        # The authoritative, fail-closed control is the SHA256 comparison below:
+        # the phase cannot pass unless the downloaded bytes match the expected
+        # vendor hash, no matter where they came from. The host checks here are
+        # defense-in-depth that block static SSRF and redirects to internal
+        # targets. Fully closing DNS rebinding (a public host re-resolving to an
+        # internal IP between this check and the request) needs connection-level
+        # IP pinning (e.g. SocketsHttpHandler.ConnectCallback); that is omitted
+        # to keep this example readable, and the hash check still fails closed.
+        function Test-PublicHttpsUri([Uri]$uri) {
+          if ($uri.Scheme -ne 'https') { Write-Error "URL must use https: $uri"; exit 1 }
+          foreach ($ip in [System.Net.Dns]::GetHostAddresses($uri.Host)) {
+            # Collapse IPv4-mapped IPv6 (e.g. ::ffff:10.0.0.1) to IPv4 so the
+            # RFC1918 checks below are not bypassed.
+            if ($ip.IsIPv4MappedToIPv6) { $ip = $ip.MapToIPv4() }
+            $b = $ip.GetAddressBytes()
+            $private =
+              [System.Net.IPAddress]::IsLoopback($ip) -or
+              $ip.Equals([System.Net.IPAddress]::IPv6Any) -or
+              ($ip.AddressFamily -eq 'InterNetwork' -and (
+                $b[0] -eq 10 -or
+                ($b[0] -eq 172 -and $b[1] -ge 16 -and $b[1] -le 31) -or
+                ($b[0] -eq 192 -and $b[1] -eq 168) -or
+                ($b[0] -eq 169 -and $b[1] -eq 254))) -or
+              ($ip.AddressFamily -eq 'InterNetworkV6' -and (
+                $ip.IsIPv6LinkLocal -or $ip.IsIPv6SiteLocal -or (($b[0] -band 0xFE) -eq 0xFC)))
+            if ($private) { Write-Error "Refusing to reach private/loopback/link-local host: $($uri.Host) ($ip)"; exit 1 }
+          }
+        }
+
+        # Resolve redirects manually, validating every hop, so a public URL
+        # cannot redirect the host into an internal target.
+        $current = [Uri]$data.downloadUrl
+        $resolved = $false
+        for ($hop = 0; $hop -lt 6; $hop++) {
+          Test-PublicHttpsUri $current
+          $resp = Invoke-WebRequest -Uri $current -Method Head -MaximumRedirection 0 -SkipHttpErrorCheck -UseBasicParsing -ErrorAction Stop
+          if ($resp.StatusCode -ge 300 -and $resp.StatusCode -lt 400) {
+            $loc = $resp.Headers.Location
+            if ($loc -is [array]) { $loc = $loc[0] }
+            if (-not $loc) { Write-Error "Redirect with no Location header"; exit 1 }
+            $current = [Uri]::new($current, [string]$loc)
+            continue
+          }
+          $resolved = $true
+          break
+        }
+        if (-not $resolved) { Write-Error "Too many redirects"; exit 1 }
+
+        $dest = Join-Path $env:TEMP ("orch-verify-$env:ORCH_RUN_ID-" + [IO.Path]::GetFileName(([Uri]$data.downloadUrl).LocalPath))
+        Write-Output "Downloading $current"
+        Invoke-WebRequest -Uri $current -OutFile $dest -MaximumRedirection 0 -UseBasicParsing
+        $actual = (Get-FileHash -Path $dest -Algorithm SHA256).Hash
+        if ($actual -ne $data.expectedSha256.ToUpperInvariant()) {
+          Write-Error "SHA256 mismatch. Expected $($data.expectedSha256) but host computed $actual"
+          exit 1
+        }
+        Write-Output "SHA256 verified by host: $actual"
+      required: true
+
+    - id: authenticode-signature
+      type: command
+      description: Checks the Authenticode signature of the downloaded installer (informational for unsigned vendors).
+      command: |
+        $json = Join-Path $env:ORCH_ARTIFACTS_DIR 'installer-research.json'
+        $data = Get-Content $json -Raw | ConvertFrom-Json
+        $dest = Join-Path $env:TEMP ("orch-verify-$env:ORCH_RUN_ID-" + [IO.Path]::GetFileName(([Uri]$data.downloadUrl).LocalPath))
+        if (-not (Test-Path $dest)) { Write-Error 'Installer not downloaded'; exit 1 }
+        $sig = Get-AuthenticodeSignature -FilePath $dest
+        Write-Output "Signature status: $($sig.Status) ($($sig.SignerCertificate.Subject))"
+        if ($sig.Status -ne 'Valid') { exit 1 }
+      required: false
+
+    - id: external-verify-script
+      type: command
+      description: Runs the script in $env:ORCH_VERIFY_SCRIPT against the download when configured (e.g. Verify-Installer.ps1).
+      timeoutMs: 600000
+      command: |
+        if (-not $env:ORCH_VERIFY_SCRIPT) { Write-Output 'ORCH_VERIFY_SCRIPT not set; skipping'; exit 0 }
+        if (-not (Test-Path $env:ORCH_VERIFY_SCRIPT)) { Write-Error "Verify script not found: $env:ORCH_VERIFY_SCRIPT"; exit 1 }
+        $json = Join-Path $env:ORCH_ARTIFACTS_DIR 'installer-research.json'
+        $data = Get-Content $json -Raw | ConvertFrom-Json
+        $dest = Join-Path $env:TEMP ("orch-verify-$env:ORCH_RUN_ID-" + [IO.Path]::GetFileName(([Uri]$data.downloadUrl).LocalPath))
+        & $env:ORCH_VERIFY_SCRIPT -Path $dest -ExpectedSha256 $data.expectedSha256
+        exit $LASTEXITCODE
+      required: true

@@ -1,0 +1,75 @@
+name: repo-review
+description: Research and review a repository for quality, security, and documentation gaps.
+
+inputs:
+  task: string
+  repoPath: string
+
+agents:
+  researcher:
+    type: researcher
+    model: auto
+    instructions: |
+      Survey the repository structure, dependencies, and conventions.
+  reviewer:
+    type: reviewer
+    model: auto
+    instructions: |
+      Review code quality, architecture, and maintainability.
+  security:
+    type: security-reviewer
+    model: auto
+    instructions: |
+      Audit for security issues, secret handling, and unsafe commands.
+  documenter:
+    type: documenter
+    model: auto
+    instructions: |
+      Identify documentation gaps and produce improvement recommendations.
+
+phases:
+  - id: research
+    agent: researcher
+    objective: Understand repository context and conventions.
+    outputs:
+      - research.md
+
+  - id: code-review
+    agent: reviewer
+    objective: Review implementation quality.
+    dependsOn:
+      - research
+    outputs:
+      - review.md
+
+  - id: security-review
+    agent: security
+    objective: Perform security audit.
+    dependsOn:
+      - code-review
+    outputs:
+      - security-review.md
+
+  - id: document
+    agent: documenter
+    objective: Summarize findings and documentation recommendations.
+    dependsOn:
+      - security-review
+    outputs:
+      - documentation.md
+
+acceptance:
+  maxRetries: 1
+  criteria:
+    - id: research-artifact
+      type: markdown_artifact
+      path: research.md
+      required: true
+    - id: review-artifact
+      type: markdown_artifact
+      path: review.md
+      required: true
+    - id: lint-pass
+      type: command
+      command: npm run lint
+      required: false

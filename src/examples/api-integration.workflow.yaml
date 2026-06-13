@@ -1,0 +1,111 @@
+name: api-integration
+description: Design, implement, test, and document a third-party API integration — including authentication, error handling, retry logic, and HTTP contract tests.
+
+inputs:
+  apiName: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Analyze the API specification or documentation for the named API, identify authentication requirements,
+      rate-limit constraints, and error scenarios. Produce an integration plan and acceptance criteria.
+  implementer:
+    type: implementer
+    model: auto
+    instructions: |
+      Implement the API client with authentication, request/response typing, retry logic with
+      exponential back-off, and structured error handling. Keep the client injectable for testing.
+  test-writer:
+    type: test-writer
+    model: auto
+    instructions: |
+      Write unit tests with a mock HTTP layer and contract tests that verify request shape and
+      response parsing against the API specification. Use Vitest on Node or Pester on PowerShell as appropriate.
+  reviewer:
+    type: reviewer
+    model: auto
+    instructions: |
+      Review the integration for correctness, security (no leaking of credentials in logs or errors),
+      resilience, and adherence to the API contract.
+  documenter:
+    type: documenter
+    model: auto
+    instructions: |
+      Document the integration: environment variables required, example usage, error codes, and
+      how to extend the client for additional endpoints.
+
+phases:
+  - id: plan
+    agent: planner
+    objective: |
+      Review the API specification for the apiName API named in Context. Document auth flow, key endpoints,
+      rate limits, error codes, and produce a phased integration plan with acceptance criteria.
+    outputs:
+      - plan.md
+      - acceptance.md
+
+  - id: implement
+    agent: implementer
+    objective: |
+      Implement the apiName API client module. Include authentication, typed request/response
+      models, configurable retry logic (3 attempts, exponential back-off), and structured errors.
+    dependsOn:
+      - plan
+    outputs:
+      - implementation-summary.md
+
+  - id: test
+    agent: test-writer
+    objective: |
+      Write contract and unit tests for the apiName client covering: successful requests, authentication failure,
+      rate-limit handling, network timeouts, and malformed response parsing.
+    dependsOn:
+      - implement
+    outputs:
+      - test-plan.md
+
+  - id: review
+    agent: reviewer
+    objective: |
+      Review the apiName client and contract tests for credential safety, resilience under failure conditions,
+      type correctness, and completeness against plan.md.
+    dependsOn:
+      - test
+
+  - id: document
+    agent: documenter
+    objective: |
+      Write integration documentation for the apiName API covering setup, required environment variables,
+      usage examples, error handling guidance, and how to add new endpoints.
+    dependsOn:
+      - review
+    outputs:
+      - integration-guide.md
+
+acceptance:
+  maxRetries: 3
+  retryPhase: implement
+  criteria:
+    - id: tests-pass
+      type: test_result
+      command: npm test
+      parser: vitest
+      required: true
+    - id: plan-exists
+      type: markdown_artifact
+      path: plan.md
+      required: true
+    - id: guide-exists
+      type: markdown_artifact
+      path: integration-guide.md
+      required: true
+    - id: no-credentials-in-code
+      type: agent_review
+      prompt: |
+        Confirm that no API keys, tokens, or secrets are hardcoded in source files.
+        All credentials should be read from environment variables or a secrets manager.
+      required: true

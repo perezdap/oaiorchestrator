@@ -1,0 +1,146 @@
+name: project-setup
+description: Scaffold a new Node/TypeScript project — initialise repository structure, toolchain, CI, documentation, and baseline Vitest tests so the team can start feature work immediately.
+
+inputs:
+  task: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Gather requirements for the new Node/TypeScript project: framework, target platform (default Windows),
+      CI system, testing framework (Vitest), and coding conventions.
+      Produce a scaffold plan that lists every file and directory to create and the tooling commands
+      to initialise them. Prefer established scaffolding tools (npm init, create-* CLIs) over
+      hand-crafting files. Document decisions in plan.md.
+  implementer:
+    type: implementer
+    model: auto
+    instructions: |
+      Run the initialisation commands and create the project scaffold exactly as defined in plan.md.
+      For Windows projects prefer PowerShell 7+ scripts, winget-sourced SDKs, and PowerShell line
+      continuation (backtick). Keep each change atomic and reviewable.
+  test-writer:
+    type: test-writer
+    model: auto
+    instructions: |
+      Add a minimal but runnable Vitest suite that proves the scaffold is wired correctly:
+      at least one passing test, a lint/type-check pass, and a build that produces expected output.
+  documenter:
+    type: documenter
+    model: auto
+    instructions: |
+      Write README.md, CONTRIBUTING.md, and any other onboarding documents called for in plan.md.
+      Cover: prerequisites, install steps, how to run tests, how to run the dev server or build,
+      and a brief architecture overview. Target a developer who has never seen the project.
+  verifier:
+    type: verifier
+    model: auto
+    instructions: |
+      Verify the complete scaffold: install dependencies, run the build, execute all tests,
+      and confirm that the documentation describes accurate commands.
+      Report any steps that fail or produce warnings.
+
+phases:
+  - id: plan-scaffold
+    agent: planner
+    objective: Define the full Node/TypeScript project scaffold including tooling choices, directory layout, and CI configuration.
+    outputs:
+      - plan.md
+      - acceptance.md
+
+  - id: scaffold
+    agent: implementer
+    objective: Initialise the repository structure, package manager, and core tooling as described in plan.md.
+    dependsOn:
+      - plan-scaffold
+    inputs:
+      - plan.md
+    outputs:
+      - scaffold-summary.md
+
+  - id: configure-ci
+    agent: implementer
+    objective: Add CI configuration (GitHub Actions, Azure Pipelines, or equivalent) with build, lint, and test jobs.
+    dependsOn:
+      - scaffold
+    inputs:
+      - plan.md
+      - scaffold-summary.md
+    outputs:
+      - ci-summary.md
+
+  - id: write-baseline-tests
+    agent: test-writer
+    objective: Add baseline Vitest tests that confirm the scaffold builds and basic smoke tests pass.
+    dependsOn:
+      - configure-ci
+    inputs:
+      - plan.md
+    outputs:
+      - test-plan.md
+
+  - id: document
+    agent: documenter
+    objective: Write README.md, CONTRIBUTING.md, and other onboarding documentation.
+    dependsOn:
+      - write-baseline-tests
+    inputs:
+      - plan.md
+      - scaffold-summary.md
+      - ci-summary.md
+    outputs:
+      - docs-summary.md
+
+  - id: verify
+    agent: verifier
+    objective: Install dependencies, run the build, execute all tests, and confirm documentation is accurate.
+    dependsOn:
+      - document
+
+acceptance:
+  maxRetries: 2
+  retryPhase: write-baseline-tests
+  criteria:
+    - id: install-succeeds
+      type: command
+      command: npm install --prefer-offline
+      timeoutMs: 120000
+      required: true
+    - id: build-succeeds
+      type: command
+      command: npm run build
+      timeoutMs: 120000
+      required: true
+    - id: tests-pass
+      type: test_result
+      command: npm test
+      parser: vitest
+      required: true
+    - id: lint-pass
+      type: command
+      command: npm run lint
+      required: false
+    - id: readme-exists
+      type: file_exists
+      path: README.md
+      required: true
+    - id: contributing-exists
+      type: file_exists
+      path: CONTRIBUTING.md
+      required: true
+    - id: plan-exists
+      type: markdown_artifact
+      path: plan.md
+      minLength: 100
+      required: true
+    - id: docs-review
+      type: agent_review
+      prompt: >
+        Confirm that README.md contains accurate install, build, and test instructions that
+        a new developer can follow without additional context. Flag any missing prerequisites
+        or steps that do not match the actual project scaffold.
+      required: false

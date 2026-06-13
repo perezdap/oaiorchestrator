@@ -1,0 +1,71 @@
+name: generic-task
+description: Handles arbitrary tasks through planning, execution, review, and verification.
+
+inputs:
+  task: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Decompose the user's request into concrete phases, risks, assumptions, and acceptance criteria.
+  implementer:
+    type: implementer
+    model: auto
+    instructions: |
+      Make the requested changes. Prefer small, reviewable diffs.
+  reviewer:
+    type: reviewer
+    model: auto
+    instructions: |
+      Review changes for correctness, maintainability, security, and missed requirements.
+  verifier:
+    type: verifier
+    model: auto
+    instructions: |
+      Run checks and determine whether acceptance criteria are met.
+
+phases:
+  - id: intake
+    agent: planner
+    objective: Understand and normalize the task.
+    outputs:
+      - plan.md
+      - acceptance.md
+
+  - id: implement
+    agent: implementer
+    objective: Implement the planned work.
+    dependsOn:
+      - intake
+
+  - id: review
+    agent: reviewer
+    objective: Review the implementation.
+    dependsOn:
+      - implement
+
+  - id: verify
+    agent: verifier
+    objective: Run acceptance checks.
+    dependsOn:
+      - review
+
+acceptance:
+  maxRetries: 3
+  criteria:
+    - id: tests-pass
+      type: command
+      command: npm test
+      required: true
+    - id: plan-exists
+      type: markdown_artifact
+      path: plan.md
+      required: true
+    - id: no-uncommitted-risk
+      type: agent_review
+      prompt: Verify there are no obvious security, correctness, or maintainability issues.
+      required: false

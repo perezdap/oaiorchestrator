@@ -1,0 +1,45 @@
+name: programmatic-usage
+description: Minimal workflow for the library usage example.
+
+inputs:
+  task: string
+  repoPath: string
+
+agents:
+  planner:
+    type: planner
+    model: auto
+    instructions: Plan the task and write plan.md.
+  verifier:
+    type: verifier
+    model: auto
+    instructions: Verify the plan meets acceptance criteria.
+
+phases:
+  - id: plan
+    agent: planner
+    objective: Create a plan for the task.
+    outputs:
+      - plan.md
+
+  - id: verify
+    agent: verifier
+    objective: Verify the plan artifact.
+    dependsOn:
+      - plan
+
+acceptance:
+  maxRetries: 1
+  criteria:
+    - id: plan-exists
+      type: markdown_artifact
+      path: plan.md
+      required: true
+    - id: shell-ok
+      type: command
+      command: exit 0
+      required: true
+    - id: manual-approve
+      type: manual_approval
+      message: Approve the example run
+      required: true

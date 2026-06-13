@@ -1,0 +1,81 @@
+name: winget-psadt-package
+description: Package a Windows application for winget and PSADT/Intune deployment.
+
+inputs:
+  appName: string
+  repoPath: string
+  executionMode: local
+
+agents:
+  planner:
+    type: planner
+    model: auto
+    instructions: |
+      Plan winget manifest, PSADT wrapper, detection logic, and Intune win32 app steps.
+  implementer:
+    type: implementer
+    model: auto
+    instructions: |
+      Create packaging scripts using PowerShell, PSADT, and winget manifest conventions.
+  test-writer:
+    type: test-writer
+    model: auto
+    instructions: |
+      Write Pester tests for install, uninstall, and detection scripts.
+  release-manager:
+    type: release-manager
+    model: auto
+    instructions: |
+      Produce release notes and deployment checklist for Intune publishing.
+
+phases:
+  - id: plan-packaging
+    agent: planner
+    objective: Define packaging approach for winget and PSADT.
+    skills:
+      - winget-psadt-package
+    outputs:
+      - plan.md
+      - acceptance.md
+
+  - id: implement-scripts
+    agent: implementer
+    objective: Implement PSADT and winget packaging assets.
+    skills:
+      - winget-psadt-package
+    dependsOn:
+      - plan-packaging
+    outputs:
+      - implementation-summary.md
+
+  - id: write-tests
+    agent: test-writer
+    objective: Add Pester tests for packaging scripts.
+    skills:
+      - winget-psadt-package
+    dependsOn:
+      - implement-scripts
+    outputs:
+      - test-plan.md
+
+  - id: release-prep
+    agent: release-manager
+    objective: Prepare release notes and deployment checklist.
+    dependsOn:
+      - write-tests
+    outputs:
+      - release-notes.md
+
+acceptance:
+  maxRetries: 2
+  retryPhase: implement-scripts
+  criteria:
+    - id: pester-pass
+      type: test_result
+      command: pwsh -NoProfile -ExecutionPolicy Bypass -Command "Invoke-Pester -Path .\\tests\\packaging"
+      parser: pester
+      required: true
+    - id: manifest-exists
+      type: file_exists
+      path: winget-manifest.yaml
+      required: true
