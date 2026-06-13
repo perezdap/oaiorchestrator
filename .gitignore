@@ -1,0 +1,15 @@
+# Node / TypeScript
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Keep source and docs
