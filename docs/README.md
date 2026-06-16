@@ -48,7 +48,7 @@ Located in `src/examples/`:
 Validate any workflow:
 
 ```powershell
-orchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
 ```
 
 ## Run artifacts

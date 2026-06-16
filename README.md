@@ -38,10 +38,12 @@ $env:OPENAI_DEFAULT_MODEL = "grok-3"
 ## Initialize
 
 ```powershell
-npx orchestrator init
+npx oaiorchestrator init
 # or after linking:
-orchestrator init
+oaiorchestrator init
 ```
+
+The package also ships `orchestrator` as a compatibility alias, but `oaiorchestrator` is the preferred command because `orchestrator` may collide with older local links.
 
 Creates `.orchestrator/config.yaml`, `.orchestrator/README.md`, `workflows/generic-task.workflow.yaml`, and `.runs/`.
 
@@ -62,7 +64,7 @@ Copy-Item .\workflows\generic-task.workflow.yaml .\workflows\my-task.workflow.ya
 3. Validate before running:
 
 ```powershell
-orchestrator validate --workflow .\workflows\my-task.workflow.yaml
+oaiorchestrator validate --workflow .\workflows\my-task.workflow.yaml
 ```
 
 See [docs/workflows.md](docs/workflows.md) for the full schema and the [example workflow catalog](docs/workflows.md#example-workflows).
@@ -72,7 +74,7 @@ Bundled templates live under `src/examples/` in this repo, or `node_modules/oaio
 Validate any example before running:
 
 ```powershell
-orchestrator validate --workflow .\src\examples\tdd-feature.workflow.yaml
+oaiorchestrator validate --workflow .\src\examples\tdd-feature.workflow.yaml
 ```
 
 To use one as a starting point for your own workflow:
@@ -86,9 +88,9 @@ When using the installed package, substitute the `node_modules/oaiorchestrator/s
 ## Run a workflow
 
 ```powershell
-orchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
 
-orchestrator run `
+oaiorchestrator run `
   --workflow .\src\examples\generic-task.workflow.yaml `
   --task "Add unit tests" `
   --repo-path .
@@ -101,13 +103,13 @@ Use `--dry-run` or `MockAgentRunner` in CI when you should not call the API.
 Resume a run:
 
 ```powershell
-orchestrator resume --run-id <id> --repo-path .
+oaiorchestrator resume --run-id <id> --repo-path .
 ```
 
 List built-in agent types:
 
 ```powershell
-orchestrator list-agents
+oaiorchestrator list-agents
 ```
 
 ### Execution modes

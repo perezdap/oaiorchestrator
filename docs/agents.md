@@ -18,7 +18,7 @@
 List types:
 
 ```powershell
-orchestrator list-agents
+oaiorchestrator list-agents
 ```
 
 ## Workflow agent configuration

@@ -28,7 +28,9 @@ Local configuration for [oaiorchestrator](https://github.com/perezdap/oaiorchest
   .runs/              # Run artifacts (gitignore this)
 \`\`\`
 
-\`orchestrator init\` must be run from the **repository root**, not from inside \`.orchestrator/\`.
+\`oaiorchestrator init\` must be run from the **repository root**, not from inside \`.orchestrator/\`.
+
+The package also ships \`orchestrator\` as a compatibility alias, but \`oaiorchestrator\` is preferred because \`orchestrator\` can collide with older local links.
 
 ## config.yaml
 
@@ -40,9 +42,9 @@ Local configuration for [oaiorchestrator](https://github.com/perezdap/oaiorchest
 ## Next steps
 
 \`\`\`powershell
-orchestrator validate --workflow .\\workflows\\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\\workflows\\generic-task.workflow.yaml
 
-orchestrator run \`
+oaiorchestrator run \`
   --workflow .\\workflows\\generic-task.workflow.yaml \`
   --task "Your task" \`
   --repo-path .
@@ -159,11 +161,11 @@ export function formatInitSummary(result: InitProjectResult): string {
   lines.push("  .runs/                      Run artifacts (gitignore recommended)");
   lines.push("");
   lines.push("Next steps:");
-  lines.push("  orchestrator validate --workflow .\\workflows\\generic-task.workflow.yaml");
-  lines.push('  orchestrator run --workflow .\\workflows\\generic-task.workflow.yaml --task "Your task" --repo-path .');
+  lines.push("  oaiorchestrator validate --workflow .\\workflows\\generic-task.workflow.yaml");
+  lines.push('  oaiorchestrator run --workflow .\\workflows\\generic-task.workflow.yaml --task "Your task" --repo-path .');
   lines.push("");
   lines.push("Optional dry run (no OpenAI API calls):");
-  lines.push('  orchestrator run --workflow .\\workflows\\generic-task.workflow.yaml --task "Your task" --repo-path . --dry-run');
+  lines.push('  oaiorchestrator run --workflow .\\workflows\\generic-task.workflow.yaml --task "Your task" --repo-path . --dry-run');
 
   return lines.join("\n");
 }

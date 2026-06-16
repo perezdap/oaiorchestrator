@@ -6,6 +6,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
+    "oaiorchestrator": "./dist/cli.js",
     "orchestrator": "./dist/cli.js"
   },
   "scripts": {

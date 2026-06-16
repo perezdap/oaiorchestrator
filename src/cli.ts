@@ -24,7 +24,7 @@ function readPackageVersion(): string {
 const program = new Command();
 
 program
-  .name("orchestrator")
+  .name("oaiorchestrator")
   .description("OpenAI-compatible agent orchestration framework")
   .version(readPackageVersion());
 

@@ -72,7 +72,7 @@ acceptance:
 ## Validation
 
 ```powershell
-orchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
 ```
 
 Validation checks:
@@ -88,7 +88,7 @@ Validation checks:
 CLI flags and workflow `inputs` merge into run state:
 
 ```powershell
-orchestrator run -w .\workflow.yaml -t "Fix login bug" -r C:\repos\my-app
+oaiorchestrator run -w .\workflow.yaml -t "Fix login bug" -r C:\repos\my-app
 ```
 
 | Input / flag | Role |

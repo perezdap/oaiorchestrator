@@ -63,7 +63,7 @@ Cloud mode still resolves and validates a **GitHub repository URL**, which is re
 - **Failure** — cloud mode throws before phases start if no GitHub URL can be resolved (CLI and library callers share this path). Non-GitHub remotes (for example GitLab) are rejected.
 
 ```powershell
-orchestrator run `
+oaiorchestrator run `
   --workflow .\src\examples\generic-task.workflow.yaml `
   --task "Add CLI parsing tests" `
   --repo-path C:\path\to\your\repo `
@@ -76,7 +76,7 @@ orchestrator run `
 From the **repository root** (not from inside `.orchestrator/`):
 
 ```powershell
-orchestrator init
+oaiorchestrator init
 ```
 
 Creates:
@@ -93,9 +93,9 @@ workflows/
 Validate and run the starter workflow:
 
 ```powershell
-orchestrator validate --workflow .\workflows\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\workflows\generic-task.workflow.yaml
 
-orchestrator run `
+oaiorchestrator run `
   --workflow .\workflows\generic-task.workflow.yaml `
   --task "Your task" `
   --repo-path .
@@ -106,7 +106,7 @@ To add more workflows, copy `workflows/generic-task.workflow.yaml`, edit the cop
 ## Validate an example workflow
 
 ```powershell
-orchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
 ```
 
 Validation checks schema shape, agent references, phase dependencies, and cycles.
@@ -116,7 +116,7 @@ Validation checks schema shape, agent references, phase dependencies, and cycles
 Simulate execution without calling the model endpoint:
 
 ```powershell
-orchestrator run `
+oaiorchestrator run `
   --workflow .\src\examples\generic-task.workflow.yaml `
   --task "Add a hello world test" `
   --repo-path . `
@@ -126,7 +126,7 @@ orchestrator run `
 ## Live run
 
 ```powershell
-orchestrator run `
+oaiorchestrator run `
   --workflow .\src\examples\generic-task.workflow.yaml `
   --task "Add a hello world test" `
   --repo-path .
@@ -151,7 +151,7 @@ Each run folder contains `state.json`, `phase-log.md`, `artifacts/`, and accepta
 ## Resume a failed run
 
 ```powershell
-orchestrator resume --run-id <id> --repo-path .
+oaiorchestrator resume --run-id <id> --repo-path .
 ```
 
 Completed phases are skipped; pending work continues from `state.json`.
@@ -159,7 +159,7 @@ Completed phases are skipped; pending work continues from `state.json`.
 ## List built-in agents
 
 ```powershell
-orchestrator list-agents
+oaiorchestrator list-agents
 ```
 
 ## Create your own workflow
@@ -169,9 +169,9 @@ orchestrator list-agents
 3. Validate, then run:
 
 ```powershell
-orchestrator validate --workflow .\workflows\my-task.workflow.yaml
+oaiorchestrator validate --workflow .\workflows\my-task.workflow.yaml
 
-orchestrator run `
+oaiorchestrator run `
   --workflow .\workflows\my-task.workflow.yaml `
   --task "Your task description" `
   --repo-path .

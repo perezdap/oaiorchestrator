@@ -9,7 +9,7 @@ description: >-
 # Usage (PowerShell):
 #   $env:OPENAI_API_KEY = "sk-..."
 #   $env:ORCH_VERIFY_SCRIPT = "C:\path\to\Verify-Installer.ps1"   # optional
-#   orchestrator run `
+#   oaiorchestrator run `
 #     --workflow .\src\examples\research-installer.workflow.yaml `
 #     --task "Research the latest 7-Zip x64 MSI installer" `
 #     --repo-path .

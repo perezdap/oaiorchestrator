@@ -35,7 +35,7 @@ When a run fails, the engine:
 
 ## Resume after crash
 
-`orchestrator resume` reloads `state.json` and calls `prepareRunForResume`:
+`oaiorchestrator resume` reloads `state.json` and calls `prepareRunForResume`:
 
 1. Phases stuck in `running` or `retrying` are reset to `pending` so they re-execute.
 2. A stale `currentPhaseId` pointing at a reset phase is cleared.

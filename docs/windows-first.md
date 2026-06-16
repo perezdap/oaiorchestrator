@@ -47,7 +47,7 @@ All documented commands use PowerShell line continuation (backtick) and Windows 
 npm install
 npm run build
 npm test
-orchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
+oaiorchestrator validate --workflow .\src\examples\generic-task.workflow.yaml
 ```
 
 Set `OPENAI_API_KEY` in the pipeline secret store for live model runs; use `MockAgentRunner` for deterministic CI without API calls.
