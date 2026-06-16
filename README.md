@@ -43,7 +43,7 @@ npx oaiorchestrator init
 oaiorchestrator init
 ```
 
-The package also ships `orchestrator` as a compatibility alias, but `oaiorchestrator` is the preferred command because `orchestrator` may collide with older local links.
+This package intentionally exposes the `oaiorchestrator` command instead of `orchestrator` to avoid collisions with older CursorOrchestrator local links.
 
 Creates `.orchestrator/config.yaml`, `.orchestrator/README.md`, `workflows/generic-task.workflow.yaml`, and `.runs/`.
 

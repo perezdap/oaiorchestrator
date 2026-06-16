@@ -30,7 +30,7 @@ Local configuration for [oaiorchestrator](https://github.com/perezdap/oaiorchest
 
 \`oaiorchestrator init\` must be run from the **repository root**, not from inside \`.orchestrator/\`.
 
-The package also ships \`orchestrator\` as a compatibility alias, but \`oaiorchestrator\` is preferred because \`orchestrator\` can collide with older local links.
+This package intentionally exposes the \`oaiorchestrator\` command instead of \`orchestrator\` to avoid collisions with older CursorOrchestrator local links.
 
 ## config.yaml
 
