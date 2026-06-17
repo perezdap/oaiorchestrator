@@ -14,9 +14,21 @@ import {
   type McpClientManagerResult,
 } from "./mcpClientManager.js";
 
-// TODO: type against the pi SDK Model interface when stable.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type PiModel = any;
+// Minimal pi model shape used by createAgentSession without importing pi SDK types.
+interface PiModelLike {
+  id: string;
+  name: string;
+  api: string;
+  provider: string;
+  baseUrl: string;
+  reasoning: boolean;
+  input: Array<"text" | "image">;
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  contextWindow: number;
+  maxTokens: number;
+}
+
+type PiModel = PiModelLike;
 
 export interface PiAgentRunnerOptions {
   /**
@@ -95,8 +107,16 @@ async function loadPiSdk() {
     ModelRegistry,
     SessionManager,
     DefaultResourceLoader,
+    getAgentDir,
   } = await import("@earendil-works/pi-coding-agent");
-  return { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader };
+  return {
+    createAgentSession,
+    AuthStorage,
+    ModelRegistry,
+    SessionManager,
+    DefaultResourceLoader,
+    getAgentDir,
+  };
 }
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -133,7 +153,7 @@ export class PiAgentRunner implements AgentRunner {
       process.stderr.write(`[PiAgentRunner] ${message}\n`);
     };
 
-    const mcpServers = this.mergeMcpServers(input);
+    const mcpServers = this.mergeMcpServers(input, emitWarning);
     let mcp: McpClientManagerResult | undefined;
     let customTools: McpClientManagerResult["tools"] = [];
     let effectiveTools = [...this.options.tools];
@@ -148,7 +168,7 @@ export class PiAgentRunner implements AgentRunner {
       effectiveTools = [...new Set([...effectiveTools, ...mcp.toolNames])];
     }
 
-    const { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader } =
+    const { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader, getAgentDir } =
       await loadPiSdk();
 
     const apiKey =
@@ -181,7 +201,6 @@ export class PiAgentRunner implements AgentRunner {
 
     const systemPrompt = this.buildSystemPrompt(input, mcp);
 
-    const { getAgentDir } = await import("@earendil-works/pi-coding-agent");
     const resourceLoader = new DefaultResourceLoader({
       cwd: input.cwd,
       agentDir: getAgentDir(),
@@ -269,9 +288,20 @@ export class PiAgentRunner implements AgentRunner {
     };
   }
 
-  private mergeMcpServers(input: AgentRunInput): McpServerConfig[] {
+  private mergeMcpServers(
+    input: AgentRunInput,
+    onWarning: (message: string) => void,
+  ): McpServerConfig[] {
     // AgentRegistry.resolve() expands workflow name references to full configs.
-    // Filter strings defensively for programmatic AgentRunInput that bypasses the registry.
+    // Warn when unresolved strings reach the runner (programmatic bypass of the registry).
+    for (const server of input.agentConfig.mcpServers ?? []) {
+      if (typeof server === "string") {
+        onWarning(
+          `Unresolved MCP server reference "${server}" was dropped — register workflow MCP servers via AgentRegistry`,
+        );
+      }
+    }
+
     const fromAgent = (input.agentConfig.mcpServers ?? []).filter(
       (server): server is McpServerConfig => typeof server !== "string",
     );

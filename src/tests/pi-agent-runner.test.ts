@@ -87,6 +87,31 @@ describe("PiAgentRunner", () => {
     expect(warnings).toContain('MCP server "demo": offline');
   });
 
+  it("warns when unresolved MCP name references reach the runner", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const cwd = createTempCwd("pi-runner-");
+    const warnings: string[] = [];
+    const runner = new PiAgentRunner({
+      onWarning: (message) => warnings.push(message),
+    });
+
+    await runner.run(
+      makeInput(cwd, {
+        agentConfig: {
+          type: "implementer",
+          model: "auto",
+          instructions: "Implement the task.",
+          mcpServers: ["docs"],
+        },
+      }),
+    );
+
+    expect(warnings.some((message) => message.includes('Unresolved MCP server reference "docs"'))).toBe(
+      true,
+    );
+    expect(mockCreateMcpClientManager).not.toHaveBeenCalled();
+  });
+
   it("merges runner-level and per-agent MCP server configs", async () => {
     vi.stubEnv("OPENAI_API_KEY", "");
     const cwd = createTempCwd("pi-runner-");

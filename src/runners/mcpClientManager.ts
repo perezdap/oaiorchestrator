@@ -35,7 +35,11 @@ interface ConnectedServer {
   config: McpServerConfig;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   client: any; // MCP Client instance — TODO: type against @modelcontextprotocol/sdk Client
-  toolNames: string[];
+  tools: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: unknown;
+  }>;
 }
 
 export interface McpClientManagerOptions {
@@ -203,9 +207,8 @@ export async function createMcpClientManager(
       }
 
       const { tools: mcpTools } = await client.listTools();
-      const toolNames = mcpTools.map((t: { name: string }) => t.name);
 
-      connected.push({ config: server, client, toolNames });
+      connected.push({ config: server, client, tools: mcpTools });
 
       if (mcpTools.length === 0) {
         warn(
@@ -223,9 +226,7 @@ export async function createMcpClientManager(
   const allTools: PiCompatibleToolDefinition[] = [];
   const allToolNames: string[] = [];
 
-  for (const { client } of connected) {
-    const { tools: mcpTools } = await client.listTools();
-
+  for (const { client, tools: mcpTools } of connected) {
     for (const def of mcpTools) {
       allToolNames.push(def.name);
 
