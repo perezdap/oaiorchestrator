@@ -260,4 +260,4 @@ npm run dev -- validate --workflow .\src\examples\generic-task.workflow.yaml
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
