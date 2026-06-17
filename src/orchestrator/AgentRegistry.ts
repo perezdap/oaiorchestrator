@@ -40,7 +40,6 @@ export class AgentRegistry {
       baseUrl: workflowAgent.baseUrl ?? typeDefault.baseUrl,
       instructions: workflowAgent.instructions || typeDefault.instructions,
       allowedTools: workflowAgent.allowedTools ?? typeDefault.allowedTools,
-      executionMode: workflowAgent.executionMode ?? typeDefault.executionMode,
       inputs: workflowAgent.inputs ?? typeDefault.inputs,
       outputs: workflowAgent.outputs ?? typeDefault.outputs,
       skills: mergeSkillIds(typeDefault.skills, workflowAgent.skills),

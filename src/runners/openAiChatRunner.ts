@@ -63,13 +63,12 @@ export class OpenAiChatRunner implements AgentRunner {
       input.apiKey,
       this.options.apiKey,
       process.env.OPENAI_API_KEY,
-      process.env.AI_REVIEW_TOKEN,
     );
     if (!apiKey) {
       return {
         success: false,
         status: "error",
-        error: "OPENAI_API_KEY is required for the OpenAI chat runner (AI_REVIEW_TOKEN is accepted as a fallback)",
+        error: "OPENAI_API_KEY is required for the OpenAI chat runner",
         artifacts: [],
       };
     }
@@ -157,9 +156,8 @@ export class OpenAiChatRunner implements AgentRunner {
       input.agentConfig.baseUrl,
       this.options.baseUrl,
       process.env.OPENAI_BASE_URL,
-      process.env.AI_REVIEW_ENDPOINT,
     ) ?? DEFAULT_BASE_URL;
-    // Accept full endpoint URLs (e.g. an AI_REVIEW_ENDPOINT or Azure endpoint
+    // Accept full endpoint URLs (e.g. an Azure endpoint ending in
     // ending in /chat/completions, optionally with a trailing slash and/or
     // ?api-version=...) as well as base URLs that need /chat/completions
     // appended. Parse with URL so the query string is preserved regardless of

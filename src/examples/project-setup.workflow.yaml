@@ -4,7 +4,6 @@ description: Scaffold a new Node/TypeScript project — initialise repository st
 inputs:
   task: string
   repoPath: string
-  executionMode: local
 
 agents:
   planner:

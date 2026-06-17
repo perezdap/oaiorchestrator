@@ -4,7 +4,6 @@ description: Refactor existing code for improved structure, readability, or perf
 inputs:
   task: string
   repoPath: string
-  executionMode: local
 
 agents:
   researcher:

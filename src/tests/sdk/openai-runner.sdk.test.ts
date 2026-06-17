@@ -14,7 +14,6 @@ function makeInput(cwd: string): AgentRunInput {
     },
     prompt: "Reply with the single word: pong",
     cwd,
-    executionMode: "local",
     runId: "openai-sdk-test",
     phaseId: "ping",
     artifactsDir: join(cwd, "artifacts"),

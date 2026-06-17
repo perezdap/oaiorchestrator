@@ -4,7 +4,6 @@ description: Handles arbitrary tasks through planning, execution, review, and ve
 inputs:
   task: string
   repoPath: string
-  executionMode: local
 
 agents:
   planner:

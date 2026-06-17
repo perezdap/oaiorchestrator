@@ -4,7 +4,6 @@ description: Perform a structured security audit of a codebase — covering depe
 inputs:
   repoPath: string
   scope: string
-  executionMode: local
 
 agents:
   researcher:

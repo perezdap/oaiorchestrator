@@ -4,7 +4,6 @@ description: Implement a new feature using test-driven development — tests are
 inputs:
   task: string
   repoPath: string
-  executionMode: local
 
 agents:
   planner:

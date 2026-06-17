@@ -6,7 +6,6 @@ const STARTER_WORKFLOWS = ["generic-task.workflow.yaml"] as const;
 
 const CONFIG_CONTENT = [
   "# oaiorchestrator configuration",
-  "defaultExecutionMode: local",
   "runsDirectory: .runs",
   "",
   "# Set OPENAI_API_KEY in your environment for the OpenAI-compatible runner",
@@ -15,7 +14,7 @@ const CONFIG_CONTENT = [
 
 const ORCHESTRATOR_README = `# .orchestrator
 
-Local configuration for [oaiorchestrator](https://github.com/perezdap/oaiorchestrator).
+Local configuration for oaiorchestrator.
 
 ## Layout
 
@@ -30,13 +29,10 @@ Local configuration for [oaiorchestrator](https://github.com/perezdap/oaiorchest
 
 \`oaiorchestrator init\` must be run from the **repository root**, not from inside \`.orchestrator/\`.
 
-This package intentionally exposes the \`oaiorchestrator\` command instead of \`orchestrator\` to avoid collisions with older CursorOrchestrator local links.
-
 ## config.yaml
 
 | Setting | Description |
 |---------|-------------|
-| \`defaultExecutionMode\` | \`local\` or \`cloud\` (currently both use the OpenAI-compatible runner) |
 | \`runsDirectory\` | Where run output is stored (default \`.runs\`) |
 
 ## Next steps
@@ -50,7 +46,7 @@ oaiorchestrator run \`
   --repo-path .
 \`\`\`
 
-See \`workflows/generic-task.workflow.yaml\` for the starter template copied during init. To add more workflows, copy that file and edit it, or see the [workflows guide](https://github.com/perezdap/oaiorchestrator/blob/main/docs/workflows.md).
+See \`workflows/generic-task.workflow.yaml\` for the starter template copied during init. To add more workflows, copy that file and edit it, or see the [workflows guide](../docs/workflows.md).
 `;
 
 export interface InitProjectResult {

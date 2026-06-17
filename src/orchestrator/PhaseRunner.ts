@@ -1,4 +1,4 @@
-import type { AgentConfig, ExecutionMode } from "../schemas/agent.schema.js";
+import type { AgentConfig } from "../schemas/agent.schema.js";
 import type { Phase } from "../schemas/task.schema.js";
 import { PromptComposer } from "../runners/PromptComposer.js";
 import type { AgentRunner } from "../runners/types.js";
@@ -12,8 +12,7 @@ export interface PhaseRunnerOptions {
   cwd: string;
   runState: RunState;
   artifactStore: ArtifactStore;
-  getRunner: (mode: ExecutionMode) => AgentRunner;
-  defaultExecutionMode: ExecutionMode;
+  agentRunner: AgentRunner;
   taskContext: Record<string, string>;
   apiKey?: string;
   skillResolver?: SkillResolver;
@@ -56,8 +55,7 @@ export class PhaseRunner {
         `Starting phase **${phase.id}** (attempt ${attempt}) with agent **${phase.agent}**`,
       );
 
-      const executionMode = this.resolveExecutionMode(agentConfig);
-      const runner = this.options.getRunner(executionMode);
+      const runner = this.options.agentRunner;
       const artifactsDir = this.options.artifactStore.artifactsDir;
 
       const skillIds = mergeSkillIds(agentConfig.skills, phase.skills);
@@ -88,7 +86,6 @@ export class PhaseRunner {
           agentConfig,
           prompt,
           cwd: this.options.cwd,
-          executionMode,
           runId: this.options.runState.runId,
           phaseId: phase.id,
           artifactsDir,
@@ -236,15 +233,5 @@ export class PhaseRunner {
         };
       }
     }
-  }
-
-  private resolveExecutionMode(
-    agentConfig: AgentConfig & { id: string },
-  ): ExecutionMode {
-    const mode = agentConfig.executionMode ?? this.options.defaultExecutionMode;
-    if (mode === "auto") {
-      return this.options.defaultExecutionMode === "cloud" ? "cloud" : "local";
-    }
-    return mode;
   }
 }

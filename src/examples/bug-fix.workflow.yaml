@@ -4,7 +4,6 @@ description: Diagnose, fix, test, and verify a reported bug.
 inputs:
   bugDescription: string
   repoPath: string
-  executionMode: local
 
 agents:
   diagnoser:

@@ -20,7 +20,6 @@ description: >-
 inputs:
   task: string
   repoPath: string
-  executionMode: local
 
 agents:
   researcher:

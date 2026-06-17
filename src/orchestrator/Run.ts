@@ -1,4 +1,3 @@
-import type { ExecutionMode } from "../schemas/agent.schema.js";
 import type { Phase } from "../schemas/task.schema.js";
 import type { Workflow } from "../schemas/workflow.schema.js";
 import { AcceptanceGate } from "./AcceptanceGate.js";
@@ -32,11 +31,7 @@ export interface RunContext {
   dryRun: boolean;
 }
 
-export interface RunOptions extends RunContext {
-  executionMode: ExecutionMode;
-  repoUrl?: string;
-  repoUrlSource?: "flag" | "git";
-}
+export interface RunOptions extends RunContext {}
 
 export class Run {
   private readonly phaseExecutor: PhaseExecutor;
@@ -63,10 +58,7 @@ export class Run {
       runId: runState.runId,
       workflowName: workflow.name,
       phasesTotal: executionOrder.length,
-      executionMode: this.options.executionMode,
       dryRun,
-      repoUrl: this.options.repoUrl,
-      repoUrlSource: this.options.repoUrlSource,
     });
 
     let phasesCompleted = 0;

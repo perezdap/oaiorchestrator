@@ -19,5 +19,5 @@ description: Implement planned work with small, reviewable diffs.
 ## Do not
 
 - Push to `main` or run destructive git operations without explicit approval
-- Import `@cursor/sdk` outside runner modules in this framework repo
+- Import LLM SDKs outside runner modules in this framework repo
 - Add inline imports in TypeScript modules

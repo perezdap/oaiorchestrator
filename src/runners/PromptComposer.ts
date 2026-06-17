@@ -47,7 +47,6 @@ export class PromptComposer {
       agentConfig,
       prompt: body,
       cwd,
-      executionMode: "local",
       runId: "",
       phaseId: phase.id,
       artifactsDir,

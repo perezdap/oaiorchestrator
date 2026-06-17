@@ -59,7 +59,6 @@ export const agentReviewCheckHandler: AcceptanceCheckHandler<
       },
       prompt,
       cwd: ctx.cwd,
-      executionMode: "local" as const,
       runId: ctx.runId,
       phaseId: `acceptance-${check.id}`,
       artifactsDir,

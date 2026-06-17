@@ -20,11 +20,7 @@ A configured role (planner, implementer, reviewer, etc.) invoked through an agen
 
 ## Agent Runner
 
-The seam where phase work is executed. Adapters include `OpenAiChatRunner` (any OpenAI-compatible `/v1/chat/completions` endpoint), `MockAgentRunner`, and future custom runners. Both `local` and `cloud` execution modes currently resolve to `OpenAiChatRunner`.
-
-## Cloud repository URL (`repoUrl`)
-
-GitHub HTTPS URL recorded in run context for cloud-mode runs. Resolved by `Orchestrator.run()` from the `repoUrl` input or auto-detected from `git remote get-url origin` on `repoPath`. Required when `executionMode` is `cloud`; non-GitHub remotes are rejected. Kept for workflow compatibility — cloud mode currently executes through the same `OpenAiChatRunner` as local.
+The seam where phase work is executed. Adapters include `OpenAiChatRunner` (any OpenAI-compatible `/v1/chat/completions` endpoint), `MockAgentRunner`, and custom runners you inject.
 
 ## Acceptance Gate
 

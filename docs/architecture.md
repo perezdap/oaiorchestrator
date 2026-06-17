@@ -134,12 +134,10 @@ flowchart TB
   end
 
   subgraph runners["AgentRunner selection"]
-    Orch2[Orchestrator.getRunner]
+    Orch2[Orchestrator.agentRunner]
     Orch2 --> override{overrideRunner set?}
     override -->|yes| mock[MockAgentRunner or custom]
-    override -->|no| mode{executionMode}
-    mode -->|local| oai[OpenAiChatRunner]
-    mode -->|cloud alias| oai
+    override -->|no| oai[OpenAiChatRunner]
     PR2 --> Orch2
     AR2[AcceptanceRunner] --> Orch2
   end
@@ -173,7 +171,7 @@ Maps workflow agent IDs to merged configs (workflow overrides + built-in type de
 
 ### PhaseRunner
 
-Builds phase prompts, selects the correct runner by execution mode, persists agent messages and artifacts, and handles per-phase retries.
+Builds phase prompts, invokes the configured agent runner, persists agent messages and artifacts, and handles per-phase retries.
 
 ### AcceptanceRunner
 
@@ -199,13 +197,11 @@ export interface AgentRunner {
 }
 ```
 
-The orchestrator calls `getRunner(mode)` — never posts to the chat-completions API directly. The default adapter is `OpenAiChatRunner` (`src/runners/openAiChatRunner.ts`), which sends the composed phase prompt to any OpenAI-compatible `/v1/chat/completions` endpoint (`OPENAI_BASE_URL`, default `https://api.openai.com/v1`, with `OPENAI_API_KEY` auth). Both `local` and `cloud` execution modes currently resolve to this runner — `cloud` is an alias kept for workflow compatibility until a hosted variant exists. Phase prompts are composed by `PromptComposer` before the runner is invoked. Inject `MockAgentRunner` in tests or custom runners for CI.
+The orchestrator uses `AgentRunner` — it never posts to the chat-completions API directly. The default adapter is `OpenAiChatRunner` (`src/runners/openAiChatRunner.ts`), which sends the composed phase prompt to any OpenAI-compatible `/v1/chat/completions` endpoint (`OPENAI_BASE_URL`, default `https://api.openai.com/v1`, with `OPENAI_API_KEY` auth). Phase prompts are composed by `PromptComposer` before the runner is invoked. Inject `MockAgentRunner` in tests or custom runners for CI.
 
 The model only returns text — it cannot execute commands or write files. The runner extracts expected output artifacts from fenced code blocks tagged with a filename (for example ```` ```json name=plan.json ```` ) and writes them into `.runs/<run-id>/artifacts/`. If the model does not emit a named block, `PhaseRunner` backfills the expected output with the full response text. All verification then runs host-side as acceptance criteria.
 
 Because a chat-completions model cannot read files from the host, a phase's declared `inputs` are embedded directly into its prompt: `buildPhaseInputArtifacts` reads each input artifact from `.runs/<run-id>/artifacts/` and inlines its content (capped per artifact) so dependent phases see prior outputs.
-
-Before phases start, `Orchestrator.run()` resolves a GitHub `repoUrl` when `executionMode` is `cloud` (`src/util/resolveRepoUrl.ts`) and records it in run context. CLI and library callers share this path; cloud runs fail fast when no URL can be resolved.
 
 For endpoint trust, host-side verification, and policy scope, see [security.md](security.md).
 

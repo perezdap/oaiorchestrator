@@ -15,16 +15,12 @@ export const agentTypeSchema = z.enum([
 
 export type AgentType = z.infer<typeof agentTypeSchema>;
 
-export const executionModeSchema = z.enum(["local", "cloud", "auto"]);
-export type ExecutionMode = z.infer<typeof executionModeSchema>;
-
 export const agentConfigSchema = z.object({
   type: agentTypeSchema,
   model: z.string().default("auto"),
   baseUrl: z.string().url().optional(),
   instructions: z.string(),
   allowedTools: z.array(z.string()).optional(),
-  executionMode: executionModeSchema.optional(),
   inputs: z.array(z.string()).optional(),
   outputs: z.array(z.string()).optional(),
   skills: z.array(z.string()).optional(),

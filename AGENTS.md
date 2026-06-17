@@ -18,7 +18,7 @@ npm test               # vitest run
 npm run dev -- validate --workflow .\src\examples\generic-task.workflow.yaml
 ```
 
-Live agent runs require `OPENAI_API_KEY` (fallback: `AI_REVIEW_TOKEN`; endpoint override via `OPENAI_BASE_URL`). Use `--dry-run` or `MockAgentRunner` when you should not call the API. See `.env.example` for all variables.
+Live agent runs require `OPENAI_API_KEY` (endpoint override via `OPENAI_BASE_URL`). Use `--dry-run` or `MockAgentRunner` when you should not call the API. See `.env.example` for all variables.
 
 ## Repository layout
 
