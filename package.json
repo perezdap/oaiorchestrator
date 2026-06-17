@@ -26,6 +26,7 @@
     "test:sdk": "vitest run src/tests/sdk",
     "test:watch": "vitest --exclude src/tests/sdk/**",
     "dev": "tsx src/cli.ts",
+    "pi": "tsx src/run-pi.ts",
     "validate": "tsx src/cli.ts validate",
     "example:programmatic": "tsx src/examples/programmatic-usage.example.ts",
     "example:pi": "tsx src/examples/pi-agent.programmatic.example.ts",
@@ -50,14 +51,18 @@
     "zod": "^3.24.2"
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "^0.79.6",
-    "@earendil-works/pi-coding-agent": "^0.79.6",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@earendil-works/pi-ai": "^0.79.6"
   },
   "peerDependenciesMeta": {
-    "@earendil-works/pi-ai": { "optional": true },
-    "@earendil-works/pi-coding-agent": { "optional": true },
-    "@modelcontextprotocol/sdk": { "optional": true }
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@earendil-works/pi-ai": "^0.79.6",
@@ -72,5 +77,9 @@
     "dist",
     "skills",
     "src/examples"
-  ]
+  ],
+  "optionalDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.79.6",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
 }
