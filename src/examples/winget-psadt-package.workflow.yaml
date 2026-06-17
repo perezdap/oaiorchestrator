@@ -4,7 +4,6 @@ description: Package a Windows application for winget and PSADT/Intune deploymen
 inputs:
   appName: string
   repoPath: string
-  executionMode: local
 
 agents:
   planner:

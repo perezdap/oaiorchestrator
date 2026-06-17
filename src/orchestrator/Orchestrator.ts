@@ -1,4 +1,3 @@
-import type { ExecutionMode } from "../schemas/agent.schema.js";
 import type { TaskInput } from "../schemas/task.schema.js";
 import type { Workflow } from "../schemas/workflow.schema.js";
 import { OpenAiChatRunner } from "../runners/openAiChatRunner.js";
@@ -14,11 +13,6 @@ import { Run, type RunWorkflowResult } from "./Run.js";
 import { generateRunId, RunState } from "./RunState.js";
 import { TaskGraph } from "./TaskGraph.js";
 import { noopRunProgress, type RunProgressReporter } from "./RunProgress.js";
-import {
-  CloudRepoUrlRequiredError,
-  resolveRunRepoUrl,
-  type ResolveRunRepoUrlResult,
-} from "../util/resolveRepoUrl.js";
 
 export type { RunWorkflowResult } from "./Run.js";
 export type { RunContext } from "./Run.js";
@@ -26,10 +20,7 @@ export type { RunContext } from "./Run.js";
 export interface OrchestratorOptions {
   cwd?: string;
   apiKey?: string;
-  executionMode?: ExecutionMode;
   agentRunner?: AgentRunner;
-  localRunner?: AgentRunner;
-  cloudRunner?: AgentRunner;
   shellRunner?: NodeShellRunner;
   approvalPolicy?: ApprovalPolicy;
   dryRun?: boolean;
@@ -54,28 +45,21 @@ interface InternalRunContext {
 
 export class Orchestrator {
   private readonly cwd: string;
-  private readonly defaultExecutionMode: ExecutionMode;
-  private readonly localRunner: AgentRunner;
-  private readonly cloudRunner: AgentRunner;
+  private readonly agentRunner: AgentRunner;
   private readonly shellRunner: NodeShellRunner;
   private readonly approvalPolicy: ApprovalPolicy;
   private readonly apiKey?: string;
   private readonly dryRun: boolean;
-  private readonly overrideRunner?: AgentRunner;
   private readonly progress: RunProgressReporter;
 
   constructor(options: OrchestratorOptions = {}) {
     this.cwd = options.cwd ?? process.cwd();
-    this.defaultExecutionMode = options.executionMode ?? "local";
     this.apiKey = options.apiKey;
-    const defaultRunner = new OpenAiChatRunner({ apiKey: options.apiKey });
-    this.localRunner = options.localRunner ?? options.agentRunner ?? defaultRunner;
-    // Cloud mode is an alias for the same OpenAI-compatible runner until a hosted variant exists.
-    this.cloudRunner = options.cloudRunner ?? defaultRunner;
+    this.agentRunner =
+      options.agentRunner ?? new OpenAiChatRunner({ apiKey: options.apiKey });
     this.shellRunner = options.shellRunner ?? new NodeShellRunner({ enforcePolicy: true });
     this.approvalPolicy = options.approvalPolicy ?? new ApprovalPolicy();
     this.dryRun = options.dryRun ?? false;
-    this.overrideRunner = options.agentRunner;
     this.progress = options.progress ?? noopRunProgress;
   }
 
@@ -83,11 +67,8 @@ export class Orchestrator {
     const registry = new AgentRegistry();
     registry.registerWorkflowAgents(input.workflow.agents);
 
-    let taskInputs = this.normalizeInputs(input.workflow, input.inputs);
+    const taskInputs = this.normalizeInputs(input.workflow, input.inputs);
     const cwd = String(taskInputs.repoPath ?? this.cwd);
-    const executionMode = this.resolveRunExecutionMode(taskInputs);
-    const resolvedRepo = this.resolveCloudRepoUrl(cwd, executionMode, taskInputs);
-    taskInputs = this.applyCloudRepoUrl(taskInputs, executionMode, resolvedRepo);
 
     let runState: RunState;
     let recoverySummary;
@@ -104,7 +85,6 @@ export class Orchestrator {
       cwd,
       runState,
       registry,
-      executionMode,
       taskInputs,
     });
 
@@ -118,9 +98,6 @@ export class Orchestrator {
       registry: ctx.registry,
       progress: this.progress,
       dryRun: this.dryRun,
-      executionMode,
-      repoUrl: resolvedRepo.repoUrl,
-      repoUrlSource: resolvedRepo.source,
     });
 
     if (recoverySummary && recoverySummary.resumablePhaseIds.length === 0) {
@@ -134,7 +111,6 @@ export class Orchestrator {
     cwd: string;
     runState: RunState;
     registry: AgentRegistry;
-    executionMode: ExecutionMode;
     taskInputs: Record<string, unknown>;
   }): InternalRunContext {
     const artifactStore = new ArtifactStore(params.runState.runDir, params.cwd);
@@ -144,8 +120,7 @@ export class Orchestrator {
       cwd: params.cwd,
       runState: params.runState,
       artifactStore,
-      getRunner: (mode) => this.getRunner(mode),
-      defaultExecutionMode: params.executionMode,
+      agentRunner: this.agentRunner,
       taskContext,
       apiKey: this.apiKey,
     });
@@ -154,7 +129,6 @@ export class Orchestrator {
       params.cwd,
       params.runState,
       artifactStore,
-      params.executionMode,
       params.registry,
     );
 
@@ -172,33 +146,18 @@ export class Orchestrator {
     cwd: string,
     runState: RunState,
     artifactStore: ArtifactStore,
-    executionMode: ExecutionMode,
     registry: AgentRegistry,
   ): AcceptanceRunner {
     return new AcceptanceRunner({
       cwd,
       runId: runState.runId,
       shellRunner: this.shellRunner,
-      agentRunner: this.getRunner(executionMode),
+      agentRunner: this.agentRunner,
       approvalPolicy: this.approvalPolicy,
       artifactsDir: artifactStore.artifactsDir,
       resolveAgentConfig: (agentId) =>
         registry.hasAgent(agentId) ? registry.resolve(agentId) : undefined,
     });
-  }
-
-  private getRunner(mode: ExecutionMode): AgentRunner {
-    if (this.overrideRunner) return this.overrideRunner;
-    if (mode === "cloud") return this.cloudRunner;
-    return this.localRunner;
-  }
-
-  private resolveRunExecutionMode(inputs: Record<string, unknown>): ExecutionMode {
-    const mode = inputs.executionMode;
-    if (mode === "local" || mode === "cloud") {
-      return mode;
-    }
-    return this.defaultExecutionMode;
   }
 
   private normalizeInputs(
@@ -209,43 +168,6 @@ export class Orchestrator {
       ...(workflow.inputs ?? {}),
       ...(inputs ?? {}),
     };
-  }
-
-  private resolveCloudRepoUrl(
-    repoPath: string,
-    executionMode: ExecutionMode,
-    inputs: Record<string, unknown>,
-  ): ResolveRunRepoUrlResult {
-    if (executionMode !== "cloud") {
-      return {};
-    }
-
-    const repoUrl = typeof inputs.repoUrl === "string" ? inputs.repoUrl : undefined;
-    const resolved = resolveRunRepoUrl({ repoPath, executionMode: "cloud", repoUrl });
-
-    if (!resolved.repoUrl) {
-      throw new CloudRepoUrlRequiredError();
-    }
-
-    return resolved;
-  }
-
-  private applyCloudRepoUrl(
-    inputs: Record<string, unknown>,
-    executionMode: ExecutionMode,
-    resolved: ResolveRunRepoUrlResult,
-  ): Record<string, unknown> {
-    if (executionMode !== "cloud") {
-      const withoutRepoUrl = { ...inputs };
-      delete withoutRepoUrl.repoUrl;
-      return withoutRepoUrl;
-    }
-
-    if (!resolved.repoUrl) {
-      return inputs;
-    }
-
-    return { ...inputs, repoUrl: resolved.repoUrl };
   }
 
   private toStringContext(inputs: Record<string, unknown>): Record<string, string> {

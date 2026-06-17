@@ -4,7 +4,6 @@ description: Design, implement, test, and document a third-party API integration
 inputs:
   apiName: string
   repoPath: string
-  executionMode: local
 
 agents:
   planner:

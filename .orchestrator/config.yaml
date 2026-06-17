@@ -1,5 +1,5 @@
-# Cursor Orchestrator configuration
-defaultExecutionMode: local
+# oaiorchestrator configuration
 runsDirectory: .runs
 
-# Set CURSOR_API_KEY in your environment for Cursor SDK runners
+# Set OPENAI_API_KEY in your environment for the OpenAI-compatible runner
+# Optional: OPENAI_BASE_URL to target Azure OpenAI, xAI/Grok, or a custom gateway

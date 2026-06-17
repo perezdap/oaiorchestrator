@@ -57,7 +57,6 @@ describe("PromptComposer", () => {
       agentConfig,
       prompt: body,
       cwd: "C:\\repo",
-      executionMode: "local",
       runId: "",
       phaseId: phase.id,
       artifactsDir,

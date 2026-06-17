@@ -40,7 +40,7 @@ The `research-installer.workflow.yaml` example demonstrates this: the model prop
 
 **Adversarial model output.** Model responses are written as artifacts and can flow into later phase prompts. They never execute directly — `command` acceptance checks come from the **workflow YAML you wrote**, not from model output — but treat artifacts as untrusted input when humans or downstream tools consume them.
 
-**API key handling.** The orchestrator reads `OPENAI_API_KEY` (fallback `AI_REVIEW_TOKEN`) from the environment or runner options. Keys in shell history, CI logs, or shared `.env` files are out of scope for orchestrator redaction until they appear in captured output.
+**API key handling.** The orchestrator reads `OPENAI_API_KEY` from the environment or runner options. Keys in shell history, CI logs, or shared `.env` files are out of scope for orchestrator redaction until they appear in captured output.
 
 **Run artifact leakage.** `.runs/` stores agent transcripts and reports on disk. These may summarize code, errors, or command output. Restrict filesystem permissions and add `.runs/` to backup/retention policies as needed.
 
@@ -64,14 +64,9 @@ flowchart LR
   API -->|text response| CLI
 ```
 
-## Execution modes
+## Dry-run and mock runs
 
-| Mode | Behavior |
-|------|----------|
-| `local` (default) | `OpenAiChatRunner` against the configured endpoint; everything else runs on your machine |
-| `cloud` | Alias of the same `OpenAiChatRunner`, kept for workflow compatibility until a hosted variant exists; still requires a resolvable GitHub `repoUrl` (recorded in run context) |
-
-**Dry-run and mock runs.** Use `--dry-run` or inject `MockAgentRunner` when validating workflows without calling any endpoint — no data leaves your machine, no API key required for agent phases.
+Use `--dry-run` or inject `MockAgentRunner` when validating workflows without calling any endpoint — no data leaves your machine, no API key required for agent phases.
 
 ## Current mitigations
 
@@ -128,6 +123,6 @@ For validation without any endpoint traffic, use `--dry-run` or `MockAgentRunner
 ## Related documentation
 
 - [Getting started — Configure the model endpoint](getting-started.md#configure-the-model-endpoint-live-runs-only)
-- [Agents — Execution modes](agents.md#execution-modes)
+- [Agents — Agent runner](agents.md#agent-runner)
 - [Architecture — Runner abstraction and Safety](architecture.md#runner-abstraction)
 - [Acceptance criteria — Policy interaction](acceptance-criteria.md#policy-interaction)

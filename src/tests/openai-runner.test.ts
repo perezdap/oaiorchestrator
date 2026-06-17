@@ -16,7 +16,6 @@ function makeInput(overrides: Partial<AgentRunInput> = {}): AgentRunInput {
     },
     prompt: "Test prompt",
     cwd,
-    executionMode: "local",
     runId: "openai-runner-test",
     phaseId: "phase-1",
     artifactsDir: join(cwd, "artifacts"),
@@ -39,7 +38,6 @@ afterEach(() => {
 describe("OpenAiChatRunner", () => {
   it("fails fast when no API key is available", async () => {
     vi.stubEnv("OPENAI_API_KEY", "");
-    vi.stubEnv("AI_REVIEW_TOKEN", "");
     const runner = new OpenAiChatRunner();
 
     const result = await runner.run(makeInput());
@@ -83,11 +81,9 @@ describe("OpenAiChatRunner", () => {
     expect(JSON.parse(init.body as string).model).toBe("grok-3");
   });
 
-  it("falls back to env for key, baseUrl, and default model", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "");
-    vi.stubEnv("AI_REVIEW_TOKEN", "env-token");
-    vi.stubEnv("OPENAI_BASE_URL", "");
-    vi.stubEnv("AI_REVIEW_ENDPOINT", "https://gateway.example.com/v1");
+  it("falls back to env for baseUrl and default model", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "env-token");
+    vi.stubEnv("OPENAI_BASE_URL", "https://gateway.example.com/v1");
     vi.stubEnv("OPENAI_DEFAULT_MODEL", "custom-model");
     const fetchMock = vi.fn().mockResolvedValue(chatResponse("ok"));
     vi.stubGlobal("fetch", fetchMock);
@@ -103,9 +99,8 @@ describe("OpenAiChatRunner", () => {
     expect(JSON.parse(init.body as string).model).toBe("custom-model");
   });
 
-  it("accepts a full chat completions URL as the endpoint fallback", async () => {
-    vi.stubEnv("OPENAI_BASE_URL", "");
-    vi.stubEnv("AI_REVIEW_ENDPOINT", "https://gateway.example.com/v1/chat/completions");
+  it("accepts a full chat completions URL as the endpoint", async () => {
+    vi.stubEnv("OPENAI_BASE_URL", "https://gateway.example.com/v1/chat/completions");
     const fetchMock = vi.fn().mockResolvedValue(chatResponse("ok"));
     vi.stubGlobal("fetch", fetchMock);
     const runner = new OpenAiChatRunner({ apiKey: "test-key" });
@@ -153,9 +148,8 @@ describe("OpenAiChatRunner", () => {
   });
 
   it("preserves query strings on full endpoint URLs (Azure style)", async () => {
-    vi.stubEnv("OPENAI_BASE_URL", "");
     vi.stubEnv(
-      "AI_REVIEW_ENDPOINT",
+      "OPENAI_BASE_URL",
       "https://res.openai.azure.com/openai/deployments/d/chat/completions?api-version=2024-02-01",
     );
     const fetchMock = vi.fn().mockResolvedValue(chatResponse("ok"));
@@ -171,9 +165,8 @@ describe("OpenAiChatRunner", () => {
   });
 
   it("normalizes a trailing slash before the query on full endpoint URLs", async () => {
-    vi.stubEnv("OPENAI_BASE_URL", "");
     vi.stubEnv(
-      "AI_REVIEW_ENDPOINT",
+      "OPENAI_BASE_URL",
       "https://res.openai.azure.com/openai/deployments/d/chat/completions/?api-version=2024-02-01",
     );
     const fetchMock = vi.fn().mockResolvedValue(chatResponse("ok"));

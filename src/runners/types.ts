@@ -1,4 +1,4 @@
-import type { AgentConfig, ExecutionMode } from "../schemas/agent.schema.js";
+import type { AgentConfig } from "../schemas/agent.schema.js";
 import type { ResolvedSkill } from "../skills/SkillResolver.js";
 
 export interface AgentRunInput {
@@ -6,7 +6,6 @@ export interface AgentRunInput {
   agentConfig: AgentConfig;
   prompt: string;
   cwd: string;
-  executionMode: ExecutionMode;
   runId: string;
   phaseId: string;
   artifactsDir: string;

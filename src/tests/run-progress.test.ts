@@ -18,7 +18,6 @@ describe("ConsoleRunProgress", () => {
       runId: "run-1",
       workflowName: "demo",
       phasesTotal: 2,
-      executionMode: "local",
       dryRun: false,
     });
     progress.phaseStarted({

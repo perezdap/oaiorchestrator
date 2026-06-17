@@ -12,7 +12,7 @@ Run your first workflow in a few minutes on Windows.
 ## Install
 
 ```powershell
-git clone git@github.com:perezdap/oaiorchestrator.git
+git clone <repository-url>
 cd oaiorchestrator
 npm install
 npm run build
@@ -37,7 +37,7 @@ $env:OPENAI_BASE_URL = "https://your-gateway.example.com/v1"   # optional overri
 $env:OPENAI_DEFAULT_MODEL = "gpt-4o-mini"                       # used when agent config says model: auto
 ```
 
-`OPENAI_BASE_URL` (and `AI_REVIEW_ENDPOINT`) accepts either a base URL or a full `/chat/completions` endpoint, including Azure-style `?api-version=...` query strings.
+`OPENAI_BASE_URL` accepts either a base URL or a full `/chat/completions` endpoint, including Azure-style `?api-version=...` query strings.
 
 For **Azure OpenAI** key auth, point at your deployment endpoint and the runner automatically uses the `api-key` header for `*.azure.com` hosts:
 
@@ -48,28 +48,9 @@ $env:OPENAI_API_KEY = "<azure-key>"
 $env:OPENAI_AUTH_STYLE = "api-key"
 ```
 
-`AI_REVIEW_TOKEN` and `AI_REVIEW_ENDPOINT` are accepted as fallbacks for the key and base URL. See `.env.example` at the repo root for the full list.
+See `.env.example` at the repo root for the full list.
 
 Without an API key you can still validate workflows and run with `--dry-run`.
-
-## Cloud execution
-
-`--execution-mode cloud` is currently an **alias** of the local OpenAI-compatible runner, kept for workflow compatibility until a hosted variant exists. Both modes execute through `OpenAiChatRunner` on your machine, and acceptance checks (`dotnet test`, `npm test`, etc.) always run locally against `--repo-path`.
-
-Cloud mode still resolves and validates a **GitHub repository URL**, which is recorded in run context:
-
-- **`--repo-url`** — optional explicit GitHub remote (HTTPS or SSH). Normalized to `https://github.com/org/repo`.
-- **Auto-detect** — if `--repo-url` is omitted, `Orchestrator.run()` reads `git remote get-url origin` from `repoPath` and converts `git@github.com:org/repo.git` to HTTPS.
-- **Failure** — cloud mode throws before phases start if no GitHub URL can be resolved (CLI and library callers share this path). Non-GitHub remotes (for example GitLab) are rejected.
-
-```powershell
-oaiorchestrator run `
-  --workflow .\src\examples\generic-task.workflow.yaml `
-  --task "Add CLI parsing tests" `
-  --repo-path C:\path\to\your\repo `
-  --repo-url https://github.com/org/repo `
-  --execution-mode cloud
-```
 
 ## Initialize a project
 
@@ -178,18 +159,6 @@ oaiorchestrator run `
 ```
 
 See [workflows.md](workflows.md) for the full schema. For specialized templates (Windows packaging, repo review, installer research), copy from `node_modules/oaiorchestrator/src/examples/`.
-
-## Migration from CursorOrchestrator
-
-If you used this project when it was built on the Cursor SDK:
-
-| Before | After |
-|--------|-------|
-| `CURSOR_API_KEY` | `OPENAI_API_KEY` (fallback: `AI_REVIEW_TOKEN`) |
-| `CursorLocalRunner` / `CursorCloudRunner` | `OpenAiChatRunner` (exported from the package root) |
-| Cloud mode on Cursor-hosted VMs | `cloud` is now an alias of the local OpenAI-compatible runner |
-
-Workflow YAML, the `.runs/<run-id>/` layout, policies, resume, and acceptance criteria are unchanged.
 
 ## Next steps
 

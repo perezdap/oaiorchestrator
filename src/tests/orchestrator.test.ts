@@ -1,11 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ApprovalPolicy } from "../policies/approvalPolicy.js";
 import { AgentRegistry } from "../orchestrator/AgentRegistry.js";
 import { AcceptanceRunner } from "../orchestrator/AcceptanceRunner.js";
-import { CloudRepoUrlRequiredError } from "../util/resolveRepoUrl.js";
 import { TaskGraph } from "../orchestrator/TaskGraph.js";
 import { NodeShellRunner } from "../runners/shellRunner.js";
 import { validateWorkflow } from "../schemas/workflow.schema.js";
@@ -131,44 +129,6 @@ describe("AcceptanceRunner", () => {
 });
 
 describe("Orchestrator", () => {
-  it("throws when cloud mode has no resolvable repository URL", async () => {
-    const { orchestrator, cwd } = createTestOrchestrator({ executionMode: "cloud" });
-
-    await expect(
-      orchestrator.run({
-        workflow: testWorkflow,
-        inputs: { task: "Cloud test", repoPath: cwd, executionMode: "cloud" },
-      }),
-    ).rejects.toThrow(CloudRepoUrlRequiredError);
-  });
-
-  it("completes a cloud workflow when repoUrl is auto-detected from origin", async () => {
-    const cwd = createTempCwd();
-    execFileSync("git", ["init"], { cwd });
-    execFileSync(
-      "git",
-      ["remote", "add", "origin", "git@github.com:example/project.git"],
-      { cwd },
-    );
-
-    const { orchestrator, mockRunner } = createTestOrchestrator({
-      cwd,
-      executionMode: "cloud",
-    });
-    configureMockRunnerForWorkflowPhases(
-      mockRunner,
-      testWorkflow.phases.map((p) => p.id),
-    );
-
-    const result = await orchestrator.run({
-      workflow: testWorkflow,
-      inputs: { task: "Cloud auto-detect test", repoPath: cwd, executionMode: "cloud" },
-    });
-
-    expect(result.status).toBe("completed");
-    expect(result.phasesCompleted).toBe(4);
-  });
-
   it("completes a full workflow with mocked agent runner", async () => {
     const { orchestrator, cwd, mockRunner } = createTestOrchestrator();
     configureMockRunnerForWorkflowPhases(

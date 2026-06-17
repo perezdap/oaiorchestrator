@@ -33,7 +33,7 @@ describe("initProject", () => {
       "workflows/generic-task.workflow.yaml",
     ]);
     expect(readFileSync(join(projectRoot, ".orchestrator/config.yaml"), "utf-8")).toContain(
-      "defaultExecutionMode: local",
+      "runsDirectory: .runs",
     );
     expect(readFileSync(join(projectRoot, "workflows/generic-task.workflow.yaml"), "utf-8")).toContain(
       "name: generic-task",

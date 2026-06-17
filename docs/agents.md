@@ -36,7 +36,6 @@ agents:
     allowedTools:
       - read
       - write
-    executionMode: local
 ```
 
 Workflow `instructions` override built-in defaults. Other fields fall back to the type module.
@@ -99,15 +98,9 @@ export const myTypeAgent: AgentTypeModule = {
 
 No orchestrator changes required.
 
-## Execution modes
+## Agent runner
 
-| Mode | Runner |
-|------|--------|
-| `local` | `OpenAiChatRunner` — calls the configured OpenAI-compatible endpoint; host workspace is `--repo-path` |
-| `cloud` | `OpenAiChatRunner` — alias of `local`, kept for workflow compatibility until a hosted variant exists |
-| `auto` | Follows workflow/run `executionMode` default |
-
-Cloud runs still require a **GitHub** repository URL. `Orchestrator.run()` resolves `repoUrl` from run inputs or auto-detects `origin` from `repoPath` when `executionMode` is `cloud`; the CLI passes `--repo-url` through as `repoUrl`. Non-GitHub remotes are rejected. The resolved URL is passed to agents as `repoUrl` in run context.
+Phase work runs through `OpenAiChatRunner` by default (or `MockAgentRunner` / a custom `AgentRunner` you inject). The host workspace is `--repo-path`; acceptance checks always execute locally against that path.
 
 See [security.md](security.md) for the threat model and endpoint trust guidance.
 

@@ -95,7 +95,5 @@ oaiorchestrator run -w .\workflow.yaml -t "Fix login bug" -r C:\repos\my-app
 |--------------|------|
 | `task` / `-t` | Task description passed to agents |
 | `repoPath` / `-r` | Local workspace root for policies, acceptance checks, and artifacts |
-| `executionMode` / `-m` | `local` (default) or `cloud` (currently an alias of the same OpenAI-compatible runner) |
-| `repoUrl` / `--repo-url` | GitHub URL required in cloud mode only; auto-detected from `origin` when omitted |
 
-`repoPath` is always the local checkout, and acceptance checks always run locally against it. Cloud mode resolves a GitHub `repoUrl` into run context for workflow compatibility, but executes through the same `OpenAiChatRunner` as local mode. See [getting-started.md](getting-started.md#cloud-execution).
+`repoPath` is the local checkout where agents are configured to run and where acceptance checks execute.

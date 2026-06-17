@@ -17,7 +17,7 @@ Works with any `/v1/chat/completions` endpoint: standard OpenAI, Azure OpenAI, x
 ## Install
 
 ```powershell
-git clone https://github.com/perezdap/oaiorchestrator.git
+git clone <repository-url>
 cd oaiorchestrator
 npm install
 npm run build
@@ -33,7 +33,7 @@ $env:OPENAI_BASE_URL = "https://api.x.ai/v1"
 $env:OPENAI_DEFAULT_MODEL = "grok-3"
 ```
 
-`AI_REVIEW_TOKEN` and `AI_REVIEW_ENDPOINT` are accepted as fallbacks when the `OPENAI_*` variables are unset. See [`.env.example`](.env.example) for the full list.
+See [`.env.example`](.env.example) for the full list of environment variables.
 
 ## Initialize
 
@@ -42,8 +42,6 @@ npx oaiorchestrator init
 # or after linking:
 oaiorchestrator init
 ```
-
-This package intentionally exposes the `oaiorchestrator` command instead of `orchestrator` to avoid collisions with older CursorOrchestrator local links.
 
 Creates `.orchestrator/config.yaml`, `.orchestrator/README.md`, `workflows/generic-task.workflow.yaml`, and `.runs/`.
 
@@ -112,10 +110,6 @@ List built-in agent types:
 oaiorchestrator list-agents
 ```
 
-### Execution modes
-
-`--execution-mode` accepts `local` (default) and `cloud`. Both currently use the same OpenAI-compatible runner — `cloud` is kept as an alias for workflow compatibility until a hosted variant exists. Acceptance checks (`npm test`, Pester, etc.) always run against `--repo-path` on your machine.
-
 ## Host-side verification
 
 The model only returns text — it cannot run commands, download files, or write to your workspace. Everything security-critical happens as acceptance criteria executed by the host in PowerShell: hash checks, signature validation, test runs, file checks. See [`src/examples/research-installer.workflow.yaml`](src/examples/research-installer.workflow.yaml) for a complete example where a researcher proposes an installer URL + SHA256 and the host downloads and verifies it with `Get-FileHash` and `Get-AuthenticodeSignature` before the run can pass.
@@ -173,7 +167,6 @@ import { Orchestrator, MockAgentRunner } from "oaiorchestrator";
 
 const orchestrator = new Orchestrator({
   agentRunner: new MockAgentRunner(), // or omit for OpenAiChatRunner
-  executionMode: "local",
 });
 ```
 
@@ -239,18 +232,6 @@ console.log(result.status, result.runDir);
 For live agents, omit `agentRunner` (defaults to `OpenAiChatRunner`) and set `OPENAI_API_KEY`.
 
 Validation: `npm test` includes `programmatic-usage.example.test.ts`; run `npm run example:programmatic` for a manual smoke check.
-
-## Migration from CursorOrchestrator
-
-This project is a converted fork of CursorOrchestrator. If you used the original:
-
-| Before | After |
-|--------|-------|
-| `CURSOR_API_KEY` | `OPENAI_API_KEY` (fallback `AI_REVIEW_TOKEN`) |
-| `CursorLocalRunner` / `CursorCloudRunner` | `OpenAiChatRunner` |
-| `runCursorAgent` export | removed |
-| Cloud mode on Cursor-hosted VMs | alias for the local OpenAI runner |
-| `@cursor/sdk` dependency | none — pure `fetch` |
 
 ## Development
 

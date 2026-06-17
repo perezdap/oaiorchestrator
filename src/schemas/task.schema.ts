@@ -38,8 +38,6 @@ export type Phase = z.infer<typeof phaseSchema>;
 export const taskInputSchema = z.object({
   task: z.string().optional(),
   repoPath: z.string().optional(),
-  repoUrl: z.string().optional(),
-  executionMode: z.enum(["local", "cloud"]).optional(),
 }).passthrough();
 
 export type TaskInput = z.infer<typeof taskInputSchema>;

@@ -15,7 +15,7 @@ The repository owner can **merge without an approval** via ruleset bypass (`pull
 ## Development setup
 
 ```powershell
-git clone git@github.com:perezdap/oaiorchestrator.git
+git clone <repository-url>
 cd oaiorchestrator
 npm install
 npm run build

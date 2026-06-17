@@ -59,7 +59,6 @@ export {
   type AgentType,
   type AgentConfig,
   type AgentDefinition,
-  type ExecutionMode,
 } from "./schemas/agent.schema.js";
 
 export {
@@ -108,8 +107,3 @@ export {
   type ShellCommandBlock,
   type FileOperation,
 } from "./policies/PolicyGate.js";
-
-export {
-  CloudRepoUrlRequiredError,
-  InvalidGitHubRepoUrlError,
-} from "./util/resolveRepoUrl.js";
