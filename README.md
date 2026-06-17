@@ -171,11 +171,36 @@ const orchestrator = new Orchestrator({
 ```
 
 - `OpenAiChatRunner` — fetch-based client for any chat completions endpoint; extracts named artifact blocks from responses
+- `PiAgentRunner` (`oaiorchestrator/pi`) — optional pi SDK runner with MCP tool support; requires peer dependencies (see below)
 - `composeAgentPrompt` / `PromptComposer` — centralized prompt assembly with skill injection
 - `AcceptanceGate` — unified acceptance evaluation with retries
 - `NodeShellRunner` — PowerShell-first shell execution for acceptance checks
 
-Per-agent endpoint overrides are supported via the optional `baseUrl` field in agent config; per-agent models via `model` (`auto` resolves to `OPENAI_DEFAULT_MODEL` or `gpt-4o-mini`).
+Per-agent endpoint overrides are supported via the optional `baseUrl` field in agent config; per-agent models via `model` (`auto` resolves to `OPENAI_DEFAULT_MODEL` or `gpt-4o-mini`). When using `PiAgentRunner`, declare a workflow root `mcpServers` allowlist and reference server names from each agent's `mcpServers` list.
+
+### Optional Pi SDK + MCP runner
+
+The main package stays lean (three runtime dependencies). For pi agent sessions with MCP tools, install peer dependencies and import from the subpath entry:
+
+```powershell
+npm install oaiorchestrator @earendil-works/pi-ai @earendil-works/pi-coding-agent @modelcontextprotocol/sdk
+```
+
+```typescript
+import { Orchestrator } from "oaiorchestrator";
+import { PiAgentRunner } from "oaiorchestrator/pi";
+
+const orchestrator = new Orchestrator({
+  agentRunner: new PiAgentRunner({
+    mcpServers: [
+      { name: "github", transport: "stdio", command: "npx",
+        args: ["-y", "@modelcontextprotocol/server-github"] },
+    ],
+  }),
+});
+```
+
+Example: [`src/examples/pi-agent.programmatic.example.ts`](src/examples/pi-agent.programmatic.example.ts) (`npm run example:pi`).
 
 See [docs/architecture.md](docs/architecture.md).
 

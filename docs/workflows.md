@@ -36,6 +36,28 @@ acceptance:
       required: true
 ```
 
+## MCP server allowlist (optional)
+
+When using `PiAgentRunner`, declare trusted MCP servers once at the workflow root. Agents reference those entries by name:
+
+```yaml
+mcpServers:
+  - name: github
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+
+agents:
+  researcher:
+    type: researcher
+    model: auto
+    instructions: Use GitHub MCP tools when needed.
+    mcpServers:
+      - github
+```
+
+`oaiorchestrator validate` rejects workflows where agents reference MCP servers without a root allowlist, reference unknown names, or inline configs that do not match the allowlist. Stdio commands in the allowlist are also checked by `commandPolicy` at connection time.
+
 ## Phase fields
 
 | Field | Description |

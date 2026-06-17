@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mcpServerReferenceSchema } from "./mcpAllowlist.js";
 
 export const agentTypeSchema = z.enum([
   "planner",
@@ -24,6 +25,7 @@ export const agentConfigSchema = z.object({
   inputs: z.array(z.string()).optional(),
   outputs: z.array(z.string()).optional(),
   skills: z.array(z.string()).optional(),
+  mcpServers: z.array(mcpServerReferenceSchema).optional(),
 });
 
 export type AgentConfig = z.infer<typeof agentConfigSchema>;

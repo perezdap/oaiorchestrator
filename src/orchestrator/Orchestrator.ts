@@ -65,6 +65,7 @@ export class Orchestrator {
 
   async run(input: RunWorkflowInput): Promise<RunWorkflowResult> {
     const registry = new AgentRegistry();
+    registry.registerWorkflowMcpServers(input.workflow.mcpServers ?? []);
     registry.registerWorkflowAgents(input.workflow.agents);
 
     const taskInputs = this.normalizeInputs(input.workflow, input.inputs);

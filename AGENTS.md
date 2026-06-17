@@ -44,7 +44,7 @@ workflows/          # User workflows (created by `orchestrator init`)
 
 ## Architecture rules
 
-1. **The orchestrator core must not import any LLM SDK or call LLM endpoints.** LLM access lives only in `src/runners/` (`OpenAiChatRunner`).
+1. **The orchestrator core must not import any LLM SDK or call LLM endpoints.** LLM access lives only in `src/runners/` (`OpenAiChatRunner`, optional `PiAgentRunner` via `oaiorchestrator/pi`).
 2. **Agent execution goes through `AgentRunner`.** Inject `MockAgentRunner` in tests; never stub HTTP calls inside orchestrator code.
 3. **Prompt assembly is centralized** in `PromptComposer.ts` (uses `composeAgentPrompt.ts` internally). Do not duplicate prompt-building logic in phase or acceptance code.
 4. **Acceptance retry semantics** belong in `AcceptanceGate`. Phase-level and workflow-level acceptance share this module.
@@ -85,7 +85,7 @@ No orchestrator changes required.
 
 ### Add an agent runner
 
-Implement `AgentRunner` in `src/runners/` and wire it in `Orchestrator` runner selection.
+Implement `AgentRunner` in `src/runners/` and wire it in `Orchestrator` runner selection. Optional SDK-heavy runners (for example `PiAgentRunner`) must export through a separate entry point (`src/pi.ts` → `oaiorchestrator/pi`) with peer dependencies so the default build stays SDK-free.
 
 ## Built-in agent types
 

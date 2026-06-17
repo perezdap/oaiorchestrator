@@ -31,4 +31,31 @@ describe("AgentRegistry", () => {
 
     expect(registry.resolve("researcher").baseUrl).toBeUndefined();
   });
+
+  it("resolves workflow MCP allowlist references for agents", () => {
+    const registry = new AgentRegistry();
+    registry.registerWorkflowMcpServers([
+      {
+        name: "docs",
+        transport: "http",
+        url: "http://localhost:3000/mcp",
+      },
+    ]);
+    registry.registerWorkflowAgents({
+      researcher: {
+        type: "researcher",
+        model: "auto",
+        instructions: "Research things.",
+        mcpServers: ["docs"],
+      },
+    });
+
+    expect(registry.resolve("researcher").mcpServers).toEqual([
+      {
+        name: "docs",
+        transport: "http",
+        url: "http://localhost:3000/mcp",
+      },
+    ]);
+  });
 });

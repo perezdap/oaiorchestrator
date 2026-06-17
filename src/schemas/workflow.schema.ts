@@ -7,6 +7,7 @@ import { mergeSkillIds } from "../skills/mergeSkillIds.js";
 import { SkillResolver } from "../skills/SkillResolver.js";
 import { agentConfigSchema } from "./agent.schema.js";
 import { acceptanceConfigSchema } from "./acceptance.schema.js";
+import { collectWorkflowMcpValidationIssues, workflowMcpAllowlistSchema } from "./mcpAllowlist.js";
 import { phaseSchema } from "./task.schema.js";
 
 export const workflowSchema = z
@@ -16,6 +17,7 @@ export const workflowSchema = z
     version: z.string().optional(),
     inputs: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
     agents: z.record(agentConfigSchema),
+    mcpServers: workflowMcpAllowlistSchema.optional(),
     phases: z.array(phaseSchema).min(1),
     acceptance: acceptanceConfigSchema.optional(),
   })
@@ -107,7 +109,23 @@ export function validateWorkflow(raw: unknown, options: ValidateWorkflowOptions 
   }
 
   validateWorkflowSkills(result.data, options);
+  validateWorkflowMcpServers(result.data);
   return result.data;
+}
+
+function validateWorkflowMcpServers(workflow: Workflow): void {
+  const issues = collectWorkflowMcpValidationIssues(workflow);
+  if (issues.length === 0) {
+    return;
+  }
+
+  throw new WorkflowValidationError(`Invalid workflow: ${issues.join("; ")}`, [
+    {
+      code: z.ZodIssueCode.custom,
+      message: issues.join("; "),
+      path: ["mcpServers"],
+    },
+  ]);
 }
 
 function validateWorkflowSkills(workflow: Workflow, options: ValidateWorkflowOptions): void {
