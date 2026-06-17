@@ -86,7 +86,16 @@ describe("validateMcpStdioServer", () => {
 describe("createMcpClientManager", () => {
   it("connects to stdio servers and discovers tools", async () => {
     mockListTools.mockResolvedValue({
-      tools: [{ name: "search", description: "Search the web" }],
+      tools: [
+        {
+          name: "search",
+          description: "Search the web",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+          },
+        },
+      ],
     });
 
     const result = await createMcpClientManager([
@@ -101,6 +110,10 @@ describe("createMcpClientManager", () => {
     expect(mockConnect).toHaveBeenCalledTimes(1);
     expect(result.toolNames).toEqual(["search"]);
     expect(result.tools).toHaveLength(1);
+    expect(result.tools[0]?.parameters).toEqual({
+      type: "object",
+      properties: { query: { type: "string" } },
+    });
     expect(result.warnings).toEqual([]);
   });
 

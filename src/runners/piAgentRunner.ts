@@ -270,6 +270,8 @@ export class PiAgentRunner implements AgentRunner {
   }
 
   private mergeMcpServers(input: AgentRunInput): McpServerConfig[] {
+    // AgentRegistry.resolve() expands workflow name references to full configs.
+    // Filter strings defensively for programmatic AgentRunInput that bypasses the registry.
     const fromAgent = (input.agentConfig.mcpServers ?? []).filter(
       (server): server is McpServerConfig => typeof server !== "string",
     );
@@ -315,12 +317,12 @@ export class PiAgentRunner implements AgentRunner {
       `You have access to tools: read, write, bash, edit.`,
     ];
 
-    if (mcp && mcp.toolNames.length > 0) {
+    if (mcp && mcp.tools.length > 0) {
       lines.push(
         ``,
         `## MCP Tools`,
         `The following MCP tools are available from configured servers:`,
-        ...mcp.toolNames.map((n) => `- ${n}`),
+        ...mcp.tools.map((tool) => `- ${tool.name}: ${tool.description}`),
       );
     }
 

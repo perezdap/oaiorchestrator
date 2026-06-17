@@ -86,6 +86,18 @@ export function validateMcpStdioServer(
   return undefined;
 }
 
+function mcpToolParameters(def: { inputSchema?: unknown }): unknown {
+  if (
+    def.inputSchema &&
+    typeof def.inputSchema === "object" &&
+    !Array.isArray(def.inputSchema)
+  ) {
+    return def.inputSchema;
+  }
+
+  return { type: "object", properties: {} };
+}
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -222,7 +234,7 @@ export async function createMcpClientManager(
         name: def.name,
         label: def.name,
         description: def.description ?? `MCP tool: ${def.name}`,
-        parameters: {},
+        parameters: mcpToolParameters(def),
         async execute(_toolCallId: string, params: Record<string, unknown>) {
           try {
             const result = await clientRef.callTool({
