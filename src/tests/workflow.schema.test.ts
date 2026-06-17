@@ -75,22 +75,23 @@ phases:
     expect(workflow.name).toBe("yaml-workflow");
   });
 
-  it("parses optional per-agent mcpServers for PiAgentRunner", () => {
+  it("parses workflow MCP allowlist and per-agent references", () => {
     const withMcp = {
       ...validWorkflow,
+      mcpServers: [
+        {
+          name: "docs",
+          transport: "http",
+          url: "http://localhost:3000/mcp",
+        },
+      ],
       agents: {
         ...validWorkflow.agents,
         researcher: {
           type: "researcher",
           model: "auto",
           instructions: "Research with MCP",
-          mcpServers: [
-            {
-              name: "docs",
-              transport: "http",
-              url: "http://localhost:3000/mcp",
-            },
-          ],
+          mcpServers: ["docs"],
         },
       },
       phases: [
@@ -103,7 +104,69 @@ phases:
     };
 
     const workflow = validateWorkflow(withMcp);
-    expect(workflow.agents.researcher.mcpServers).toHaveLength(1);
+    expect(workflow.mcpServers).toHaveLength(1);
+    expect(workflow.agents.researcher.mcpServers).toEqual(["docs"]);
+  });
+
+  it("rejects agent MCP references without a workflow allowlist", () => {
+    const invalid = {
+      ...validWorkflow,
+      agents: {
+        ...validWorkflow.agents,
+        researcher: {
+          type: "researcher",
+          model: "auto",
+          instructions: "Research with MCP",
+          mcpServers: ["docs"],
+        },
+      },
+    };
+
+    expect(() => validateWorkflow(invalid)).toThrow(WorkflowValidationError);
+  });
+
+  it("rejects agent MCP references that are not in the workflow allowlist", () => {
+    const invalid = {
+      ...validWorkflow,
+      mcpServers: [
+        {
+          name: "docs",
+          transport: "http",
+          url: "http://localhost:3000/mcp",
+        },
+      ],
+      agents: {
+        ...validWorkflow.agents,
+        researcher: {
+          type: "researcher",
+          model: "auto",
+          instructions: "Research with MCP",
+          mcpServers: ["missing"],
+        },
+      },
+    };
+
+    expect(() => validateWorkflow(invalid)).toThrow(WorkflowValidationError);
+  });
+
+  it("rejects duplicate MCP server names in the workflow allowlist", () => {
+    const invalid = {
+      ...validWorkflow,
+      mcpServers: [
+        {
+          name: "docs",
+          transport: "http",
+          url: "http://localhost:3000/mcp",
+        },
+        {
+          name: "docs",
+          transport: "stdio",
+          command: "npx",
+        },
+      ],
+    };
+
+    expect(() => validateWorkflow(invalid)).toThrow(WorkflowValidationError);
   });
 
   it("rejects workflow with unknown agent reference", () => {

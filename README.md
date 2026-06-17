@@ -176,7 +176,7 @@ const orchestrator = new Orchestrator({
 - `AcceptanceGate` — unified acceptance evaluation with retries
 - `NodeShellRunner` — PowerShell-first shell execution for acceptance checks
 
-Per-agent endpoint overrides are supported via the optional `baseUrl` field in agent config; per-agent models via `model` (`auto` resolves to `OPENAI_DEFAULT_MODEL` or `gpt-4o-mini`). When using `PiAgentRunner`, declare optional `mcpServers` per agent in workflow YAML or on the runner constructor.
+Per-agent endpoint overrides are supported via the optional `baseUrl` field in agent config; per-agent models via `model` (`auto` resolves to `OPENAI_DEFAULT_MODEL` or `gpt-4o-mini`). When using `PiAgentRunner`, declare a workflow root `mcpServers` allowlist and reference server names from each agent's `mcpServers` list.
 
 ### Optional Pi SDK + MCP runner
 

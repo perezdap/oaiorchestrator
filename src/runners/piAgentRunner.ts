@@ -270,7 +270,9 @@ export class PiAgentRunner implements AgentRunner {
   }
 
   private mergeMcpServers(input: AgentRunInput): McpServerConfig[] {
-    const fromAgent = input.agentConfig.mcpServers ?? [];
+    const fromAgent = (input.agentConfig.mcpServers ?? []).filter(
+      (server): server is McpServerConfig => typeof server !== "string",
+    );
     return [...this.options.mcpServers, ...fromAgent];
   }
 

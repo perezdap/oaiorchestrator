@@ -1,10 +1,13 @@
 import { builtInAgentDefinitions } from "../agents/index.js";
 import { mergeSkillIds } from "../skills/mergeSkillIds.js";
 import type { AgentConfig, AgentDefinition, AgentType } from "../schemas/agent.schema.js";
+import { resolveMcpServerReferences } from "../schemas/mcpAllowlist.js";
+import type { McpServerConfig } from "../schemas/mcp.schema.js";
 
 export class AgentRegistry {
   private readonly typeDefaults = new Map<AgentType, AgentDefinition>();
   private readonly workflowAgents = new Map<string, AgentConfig & { id: string }>();
+  private mcpAllowlist: McpServerConfig[] = [];
 
   constructor() {
     for (const def of builtInAgentDefinitions) {
@@ -20,6 +23,10 @@ export class AgentRegistry {
     for (const [id, config] of Object.entries(agents)) {
       this.workflowAgents.set(id, { id, ...config });
     }
+  }
+
+  registerWorkflowMcpServers(servers: McpServerConfig[]): void {
+    this.mcpAllowlist = servers;
   }
 
   resolve(agentId: string): AgentConfig & { id: string; type: AgentType } {
@@ -43,6 +50,10 @@ export class AgentRegistry {
       inputs: workflowAgent.inputs ?? typeDefault.inputs,
       outputs: workflowAgent.outputs ?? typeDefault.outputs,
       skills: mergeSkillIds(typeDefault.skills, workflowAgent.skills),
+      mcpServers:
+        workflowAgent.mcpServers && workflowAgent.mcpServers.length > 0
+          ? resolveMcpServerReferences(this.mcpAllowlist, workflowAgent.mcpServers)
+          : undefined,
     };
   }
 
