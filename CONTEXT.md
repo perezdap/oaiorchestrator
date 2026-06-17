@@ -20,7 +20,7 @@ A configured role (planner, implementer, reviewer, etc.) invoked through an agen
 
 ## Agent Runner
 
-The seam where phase work is executed. Adapters include `OpenAiChatRunner` (any OpenAI-compatible `/v1/chat/completions` endpoint), `MockAgentRunner`, and custom runners you inject.
+The seam where phase work is executed. Adapters include `OpenAiChatRunner` (any OpenAI-compatible `/v1/chat/completions` endpoint), `MockAgentRunner`, optional `PiAgentRunner` (pi SDK + MCP tools via `oaiorchestrator/pi`), and custom runners you inject.
 
 ## Acceptance Gate
 

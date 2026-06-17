@@ -3,16 +3,18 @@
  * oaiorchestrator phases access to the full pi agent runtime: tool calling,
  * MCP tools, streaming, and structured output.
  *
- * MCP servers are configured directly on the runner (not from host extensions)
- * so the entire setup is self-contained within oaiorchestrator.
+ * MCP servers are configured on the runner and/or per-agent in workflow YAML.
+ * Import from `oaiorchestrator/pi` (not the main entry) so pi SDK packages
+ * remain optional peer dependencies.
  */
+import type { McpServerConfig } from "../schemas/mcp.schema.js";
 import type { AgentRunner, AgentRunInput, AgentRunResult } from "./types.js";
 import {
   createMcpClientManager,
   type McpClientManagerResult,
-  type McpServerConfig,
 } from "./mcpClientManager.js";
 
+// TODO: type against the pi SDK Model interface when stable.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PiModel = any;
 
@@ -47,13 +49,16 @@ export interface PiAgentRunnerOptions {
   timeoutMs?: number;
 
   /**
+   * Per-server MCP connection timeout in milliseconds.
+   * Defaults to 30_000.
+   */
+  mcpConnectTimeoutMs?: number;
+
+  /**
    * Built-in pi tools to enable. Defaults to ["read", "bash", "edit", "write"].
-   * MCP tool names (from configured servers) are **automatically merged**
-   * into this list — you only need to list them here if you want to
-   * restrict which MCP tools the agent can use.
+   * MCP tool names from configured servers are merged into this list.
    *
-   * Set to ["read"] for read-only mode. MCP tools are still auto-added
-   * unless you also set `mcpTools: "manual"`.
+   * Set to ["read"] for read-only mode.
    */
   tools?: string[];
 
@@ -63,37 +68,34 @@ export interface PiAgentRunnerOptions {
   excludeTools?: string[];
 
   /**
-   * MCP servers to connect to. Each server's tools are discovered
-   * and registered as pi tools available to the agent session.
-   *
-   * Example:
-   * ```ts
-   * mcpServers: [
-   *   { name: "github", transport: "stdio", command: "npx",
-   *     args: ["-y", "@modelcontextprotocol/server-github"] },
-   *   { name: "firecrawl", transport: "http",
-   *     url: "http://localhost:3000/mcp" },
-   * ]
-   * ```
+   * MCP servers to connect to for every phase. Per-agent `mcpServers` in
+   * workflow YAML are merged with this list.
    */
   mcpServers?: McpServerConfig[];
+
+  /**
+   * Receive non-fatal MCP warnings (connection failures, policy blocks, etc.).
+   * Defaults to stderr logging when omitted.
+   */
+  onWarning?: (message: string) => void;
 }
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o";
 const DEFAULT_TIMEOUT_MS = 300_000;
+const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_TOOLS = ["read", "bash", "edit", "write"];
 
 // ── Lazy SDK loader ─────────────────────────────────────────────────────────
 
 async function loadPiSdk() {
-  const [
-    { createAgentSession },
-    { AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader },
-  ] = await Promise.all([
-    import("@earendil-works/pi-coding-agent"),
-    import("@earendil-works/pi-coding-agent"),
-  ]);
+  const {
+    createAgentSession,
+    AuthStorage,
+    ModelRegistry,
+    SessionManager,
+    DefaultResourceLoader,
+  } = await import("@earendil-works/pi-coding-agent");
   return { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader };
 }
 
@@ -102,8 +104,9 @@ async function loadPiSdk() {
 export class PiAgentRunner implements AgentRunner {
   readonly name = "pi-agent";
 
-  private readonly options: Required<Omit<PiAgentRunnerOptions, "mcpServers">> & {
+  private readonly options: Required<Omit<PiAgentRunnerOptions, "mcpServers" | "onWarning">> & {
     mcpServers: McpServerConfig[];
+    onWarning?: (message: string) => void;
   };
 
   constructor(options: PiAgentRunnerOptions = {}) {
@@ -113,39 +116,38 @@ export class PiAgentRunner implements AgentRunner {
       model: options.model ?? DEFAULT_MODEL,
       temperature: options.temperature ?? 0.2,
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      mcpConnectTimeoutMs: options.mcpConnectTimeoutMs ?? DEFAULT_MCP_CONNECT_TIMEOUT_MS,
       tools: options.tools ?? DEFAULT_TOOLS,
       excludeTools: options.excludeTools ?? [],
       mcpServers: options.mcpServers ?? [],
+      onWarning: options.onWarning,
     };
   }
 
   async run(input: AgentRunInput): Promise<AgentRunResult> {
-    // ── MCP: connect to servers and discover tools ──────────────────────
+    const emitWarning = (message: string): void => {
+      if (this.options.onWarning) {
+        this.options.onWarning(message);
+        return;
+      }
+      process.stderr.write(`[PiAgentRunner] ${message}\n`);
+    };
+
+    const mcpServers = this.mergeMcpServers(input);
     let mcp: McpClientManagerResult | undefined;
-    let customTools: Awaited<ReturnType<typeof import("@earendil-works/pi-coding-agent")["defineTool"]>>[] = [];
+    let customTools: McpClientManagerResult["tools"] = [];
     let effectiveTools = [...this.options.tools];
 
-    if (this.options.mcpServers.length > 0) {
-      mcp = await createMcpClientManager(this.options.mcpServers);
+    if (mcpServers.length > 0) {
+      mcp = await createMcpClientManager(mcpServers, {
+        connectTimeoutMs: this.options.mcpConnectTimeoutMs,
+        workspaceRoot: input.cwd,
+        onWarning: emitWarning,
+      });
       customTools = mcp.tools;
-
-      // Auto-merge MCP tool names unless the user specified an explicit allowlist
-      const userSpecifiedTools = this.options.tools !== DEFAULT_TOOLS;
-      if (!userSpecifiedTools) {
-        effectiveTools = [...new Set([...effectiveTools, ...mcp.toolNames])];
-      } else {
-        // User specified tools — still add any MCP tools they didn't list
-        // so the agent can discover and use them
-        effectiveTools = [...new Set([...effectiveTools, ...mcp.toolNames])];
-      }
-
-      for (const warning of mcp.warnings) {
-        // Log warnings — in production this would go through RunState
-        console.warn(`[PiAgentRunner] ${warning}`);
-      }
+      effectiveTools = [...new Set([...effectiveTools, ...mcp.toolNames])];
     }
 
-    // ── Pi SDK setup ────────────────────────────────────────────────────
     const { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader } =
       await loadPiSdk();
 
@@ -187,7 +189,6 @@ export class PiAgentRunner implements AgentRunner {
     });
     await resourceLoader.reload();
 
-    // ── Create session ──────────────────────────────────────────────────
     const { session } = await createAgentSession({
       model,
       authStorage,
@@ -195,12 +196,13 @@ export class PiAgentRunner implements AgentRunner {
       resourceLoader,
       tools: effectiveTools,
       excludeTools: this.options.excludeTools,
-      customTools,
+      // Pi SDK ToolDefinition types are not a compile-time dependency of the main package.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      customTools: customTools as any,
       sessionManager: SessionManager.inMemory(),
       thinkingLevel: "off",
     });
 
-    // ── Collect output ──────────────────────────────────────────────────
     let resultText = "";
     let hasError = false;
     let errorMessage = "";
@@ -267,7 +269,10 @@ export class PiAgentRunner implements AgentRunner {
     };
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────
+  private mergeMcpServers(input: AgentRunInput): McpServerConfig[] {
+    const fromAgent = input.agentConfig.mcpServers ?? [];
+    return [...this.options.mcpServers, ...fromAgent];
+  }
 
   private async resolveModel(modelId: string, baseUrl: string): Promise<PiModel> {
     try {
@@ -314,8 +319,6 @@ export class PiAgentRunner implements AgentRunner {
         `## MCP Tools`,
         `The following MCP tools are available from configured servers:`,
         ...mcp.toolNames.map((n) => `- ${n}`),
-        ``,
-        `MCP servers connected: ${mcp.toolNames.length > 0 ? mcp.toolNames.length : 0} tools across servers.`,
       );
     }
 

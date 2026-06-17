@@ -42,6 +42,18 @@ Workflow `instructions` override built-in defaults. Other fields fall back to th
 
 - `model: auto` resolves to `$env:OPENAI_DEFAULT_MODEL` or `gpt-4o-mini`.
 - `baseUrl` (optional) points a single agent at a different OpenAI-compatible endpoint; otherwise `$env:OPENAI_BASE_URL` (default `https://api.openai.com/v1`) is used.
+- `mcpServers` (optional, used with `PiAgentRunner`) declares MCP servers for that agent — stdio or HTTP transports. Runner-level `mcpServers` on `PiAgentRunner` are merged with per-agent entries.
+
+```yaml
+agents:
+  researcher:
+    type: researcher
+    model: auto
+    mcpServers:
+      - name: docs
+        transport: http
+        url: http://localhost:3000/mcp
+```
 
 ## Default skills
 

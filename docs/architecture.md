@@ -199,6 +199,8 @@ export interface AgentRunner {
 
 The orchestrator uses `AgentRunner` — it never posts to the chat-completions API directly. The default adapter is `OpenAiChatRunner` (`src/runners/openAiChatRunner.ts`), which sends the composed phase prompt to any OpenAI-compatible `/v1/chat/completions` endpoint (`OPENAI_BASE_URL`, default `https://api.openai.com/v1`, with `OPENAI_API_KEY` auth). Phase prompts are composed by `PromptComposer` before the runner is invoked. Inject `MockAgentRunner` in tests or custom runners for CI.
 
+Optional `PiAgentRunner` (`src/runners/piAgentRunner.ts`, exported as `oaiorchestrator/pi`) wraps the pi coding-agent SDK for tool calling and MCP integration. It uses dynamic imports and optional peer dependencies so consumers of the main entry point are not forced to install pi or MCP packages. MCP servers can be configured on the runner and per-agent via workflow YAML `mcpServers`.
+
 The model only returns text — it cannot execute commands or write files. The runner extracts expected output artifacts from fenced code blocks tagged with a filename (for example ```` ```json name=plan.json ```` ) and writes them into `.runs/<run-id>/artifacts/`. If the model does not emit a named block, `PhaseRunner` backfills the expected output with the full response text. All verification then runs host-side as acceptance criteria.
 
 Because a chat-completions model cannot read files from the host, a phase's declared `inputs` are embedded directly into its prompt: `buildPhaseInputArtifacts` reads each input artifact from `.runs/<run-id>/artifacts/` and inlines its content (capped per artifact) so dependent phases see prior outputs.
@@ -211,7 +213,7 @@ For endpoint trust, host-side verification, and policy scope, see [security.md](
 |--------|----------|
 | Agent type | `src/agents/*.agent.ts` |
 | Acceptance check | `src/schemas/acceptance.schema.ts`, `src/orchestrator/acceptanceChecks/` |
-| Agent runner | `src/runners/` |
+| Agent runner | `src/runners/` (`OpenAiChatRunner`, `MockAgentRunner`; optional `PiAgentRunner` via `oaiorchestrator/pi`) |
 | Policy rule | `src/policies/` (`PolicyGate` for enforcement at call sites) |
 | Workflow | YAML under `src/examples/` or `workflows/` |
 

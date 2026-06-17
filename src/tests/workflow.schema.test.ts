@@ -75,6 +75,37 @@ phases:
     expect(workflow.name).toBe("yaml-workflow");
   });
 
+  it("parses optional per-agent mcpServers for PiAgentRunner", () => {
+    const withMcp = {
+      ...validWorkflow,
+      agents: {
+        ...validWorkflow.agents,
+        researcher: {
+          type: "researcher",
+          model: "auto",
+          instructions: "Research with MCP",
+          mcpServers: [
+            {
+              name: "docs",
+              transport: "http",
+              url: "http://localhost:3000/mcp",
+            },
+          ],
+        },
+      },
+      phases: [
+        {
+          id: "research",
+          agent: "researcher",
+          objective: "Research",
+        },
+      ],
+    };
+
+    const workflow = validateWorkflow(withMcp);
+    expect(workflow.agents.researcher.mcpServers).toHaveLength(1);
+  });
+
   it("rejects workflow with unknown agent reference", () => {
     const invalid = {
       ...validWorkflow,

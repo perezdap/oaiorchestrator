@@ -85,12 +85,6 @@ export {
 } from "./runners/openAiChatRunner.js";
 export { NodeShellRunner } from "./runners/shellRunner.js";
 export { MockAgentRunner } from "./runners/mockRunner.js";
-export { PiAgentRunner, type PiAgentRunnerOptions } from "./runners/piAgentRunner.js";
-export {
-  type McpServerConfig,
-  type McpStdioServerConfig,
-  type McpHttpServerConfig,
-} from "./runners/mcpClientManager.js";
 
 export { builtInAgentDefinitions, builtInAgentModules } from "./agents/index.js";
 

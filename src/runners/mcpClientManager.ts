@@ -2,49 +2,54 @@
  * MCP Client Manager — self-contained MCP integration for PiAgentRunner.
  *
  * Connects to configured MCP servers (stdio or HTTP), discovers their tools,
- * and wraps them as pi-compatible ToolDefinitions. No host extensions needed.
+ * and wraps them as pi-compatible tool definitions. No host extensions needed.
  */
-import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { evaluateCommand } from "../policies/commandPolicy.js";
+import { isWithinWorkspace } from "../policies/filePolicy.js";
+import type { McpServerConfig } from "../schemas/mcp.schema.js";
 
-// ── Configuration ───────────────────────────────────────────────────────────
+export type {
+  McpHttpServerConfig,
+  McpServerConfig,
+  McpStdioServerConfig,
+} from "../schemas/mcp.schema.js";
 
-export interface McpStdioServerConfig {
+/** Tool shape accepted by pi's `customTools` without importing the pi SDK at compile time. */
+export interface PiCompatibleToolDefinition {
   name: string;
-  transport: "stdio";
-  /** Command to spawn the MCP server process. */
-  command: string;
-  /** Arguments for the command. */
-  args?: string[];
-  /** Environment variables for the server process. */
-  env?: Record<string, string>;
-  /** Working directory for the server process. */
-  cwd?: string;
+  label: string;
+  description: string;
+  parameters: unknown;
+  execute: (
+    toolCallId: string,
+    params: Record<string, unknown>,
+  ) => Promise<{
+    content: Array<{ type: "text"; text: string }>;
+    details: Record<string, unknown>;
+  }>;
 }
-
-export interface McpHttpServerConfig {
-  name: string;
-  transport: "http";
-  /** URL of the MCP server (e.g. http://localhost:3000/mcp). */
-  url: string;
-  /** Optional headers (e.g. Authorization). */
-  headers?: Record<string, string>;
-}
-
-export type McpServerConfig = McpStdioServerConfig | McpHttpServerConfig;
 
 // ── Manager result ──────────────────────────────────────────────────────────
 
 interface ConnectedServer {
   config: McpServerConfig;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  client: any; // MCP Client instance
+  client: any; // MCP Client instance — TODO: type against @modelcontextprotocol/sdk Client
   toolNames: string[];
+}
+
+export interface McpClientManagerOptions {
+  /** Per-server connection timeout in milliseconds. Defaults to 30_000. */
+  connectTimeoutMs?: number;
+  /** Workspace root used to validate stdio `cwd` paths. */
+  workspaceRoot?: string;
+  /** Non-fatal warnings (policy blocks, connection failures, dispose errors). */
+  onWarning?: (message: string) => void;
 }
 
 export interface McpClientManagerResult {
   /** Tool definitions ready for pi's customTools. */
-  tools: ToolDefinition[];
+  tools: PiCompatibleToolDefinition[];
   /** Names of tools discovered (for the pi tools allowlist). */
   toolNames: string[];
   /** Errors encountered during connection/discovery (non-fatal). */
@@ -53,11 +58,57 @@ export interface McpClientManagerResult {
   dispose: () => Promise<void>;
 }
 
+const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+
+function warn(options: McpClientManagerOptions, message: string, warnings: string[]): void {
+  warnings.push(message);
+  options.onWarning?.(message);
+}
+
+function formatStdioCommand(server: Extract<McpServerConfig, { transport: "stdio" }>): string {
+  return [server.command, ...(server.args ?? [])].join(" ").trim();
+}
+
+export function validateMcpStdioServer(
+  server: Extract<McpServerConfig, { transport: "stdio" }>,
+  workspaceRoot?: string,
+): string | undefined {
+  const commandText = formatStdioCommand(server);
+  const commandPolicy = evaluateCommand(commandText);
+  if (commandPolicy.verdict === "block") {
+    return `command blocked by policy: ${commandPolicy.reason}`;
+  }
+
+  if (server.cwd && workspaceRoot && !isWithinWorkspace(server.cwd, workspaceRoot)) {
+    return `cwd "${server.cwd}" is outside workspace "${workspaceRoot}"`;
+  }
+
+  return undefined;
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // ── Dynamic import helper ───────────────────────────────────────────────────
 
-// We use dynamic imports with .js extensions because the MCP SDK v1.29+
-// exposes transports only via wildcard exports. The @modelcontextprotocol/sdk
-// package has a "./*" wildcard that maps to ./dist/esm/*.js files.
 async function loadMcpTransports() {
   const [
     { Client },
@@ -77,19 +128,32 @@ async function loadMcpTransports() {
 
 /**
  * Connects to configured MCP servers, discovers their tools, and returns
- * pi-compatible ToolDefinitions. Call `dispose()` when the agent session ends.
+ * pi-compatible tool definitions. Call `dispose()` when the agent session ends.
+ *
+ * Connection failures are non-fatal: warnings are collected and other servers
+ * still connect.
  */
 export async function createMcpClientManager(
   servers: McpServerConfig[],
+  options: McpClientManagerOptions = {},
 ): Promise<McpClientManagerResult> {
   const { Client, StdioClientTransport, StreamableHTTPClientTransport, SSEClientTransport } =
     await loadMcpTransports();
 
+  const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
   const connected: ConnectedServer[] = [];
   const warnings: string[] = [];
 
   for (const server of servers) {
     try {
+      if (server.transport === "stdio") {
+        const validationError = validateMcpStdioServer(server, options.workspaceRoot);
+        if (validationError) {
+          warn(options, `MCP server "${server.name}": ${validationError}`, warnings);
+          continue;
+        }
+      }
+
       const client = new Client({
         name: `oaiorchestrator-${server.name}`,
         version: "1.0.0",
@@ -102,15 +166,27 @@ export async function createMcpClientManager(
           env: server.env,
           cwd: server.cwd,
         });
-        await client.connect(transport);
+        await withTimeout(
+          client.connect(transport),
+          connectTimeoutMs,
+          `MCP server "${server.name}" stdio connect`,
+        );
       } else {
         const url = new URL(server.url);
         try {
           const transport = new StreamableHTTPClientTransport(url);
-          await client.connect(transport);
+          await withTimeout(
+            client.connect(transport),
+            connectTimeoutMs,
+            `MCP server "${server.name}" HTTP connect`,
+          );
         } catch {
           const transport = new SSEClientTransport(url);
-          await client.connect(transport);
+          await withTimeout(
+            client.connect(transport),
+            connectTimeoutMs,
+            `MCP server "${server.name}" SSE connect`,
+          );
         }
       }
 
@@ -120,16 +196,19 @@ export async function createMcpClientManager(
       connected.push({ config: server, client, toolNames });
 
       if (mcpTools.length === 0) {
-        warnings.push(`MCP server "${server.name}": connected but no tools discovered`);
+        warn(
+          options,
+          `MCP server "${server.name}": connected but no tools discovered`,
+          warnings,
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      warnings.push(`MCP server "${server.name}": ${message}`);
+      warn(options, `MCP server "${server.name}": ${message}`, warnings);
     }
   }
 
-  // Build pi ToolDefinitions from all discovered tools
-  const allTools: ToolDefinition[] = [];
+  const allTools: PiCompatibleToolDefinition[] = [];
   const allToolNames: string[] = [];
 
   for (const { client } of connected) {
@@ -139,18 +218,16 @@ export async function createMcpClientManager(
       allToolNames.push(def.name);
 
       const clientRef = client;
-      const toolDef: ToolDefinition = {
+      const toolDef: PiCompatibleToolDefinition = {
         name: def.name,
         label: def.name,
         description: def.description ?? `MCP tool: ${def.name}`,
-        // Accept any JSON object — the MCP server validates against its schema
-        parameters: Type.Record(Type.String(), Type.Unknown()) as unknown as ToolDefinition["parameters"],
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async execute(_toolCallId: string, params: any) {
+        parameters: {},
+        async execute(_toolCallId: string, params: Record<string, unknown>) {
           try {
             const result = await clientRef.callTool({
               name: def.name,
-              arguments: params as Record<string, unknown>,
+              arguments: params,
             });
 
             if (result.isError) {
@@ -194,11 +271,16 @@ export async function createMcpClientManager(
     toolNames: allToolNames,
     warnings,
     dispose: async () => {
-      for (const { client } of connected) {
+      for (const { config, client } of connected) {
         try {
           await client.close();
-        } catch {
-          // Best effort cleanup
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          warn(
+            options,
+            `MCP server "${config.name}": dispose failed: ${message}`,
+            warnings,
+          );
         }
       }
     },

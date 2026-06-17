@@ -23,6 +23,8 @@ The `research-installer.workflow.yaml` example demonstrates this: the model prop
 
 `OpenAiChatRunner` posts composed phase prompts to the configured `/v1/chat/completions` endpoint (`OPENAI_BASE_URL`, per-agent `baseUrl`, or the default `https://api.openai.com/v1`).
 
+`PiAgentRunner` (optional, `oaiorchestrator/pi`) adds MCP server connections (stdio process spawn or HTTP/SSE) and pi SDK tool execution. Stdio MCP commands are validated with `commandPolicy`; stdio `cwd` must stay inside the phase workspace (`filePolicy`). Connection failures are non-fatal warnings; hung connections time out per server.
+
 ### Assets at risk
 
 | Asset | Exposure |
@@ -76,8 +78,8 @@ Policies guard host-side acceptance execution and artifact persistence; redactio
 
 | Policy | Module | What it does |
 |--------|--------|--------------|
-| Command policy | `src/policies/commandPolicy.ts` | Blocks destructive commands (force push, hard reset, `rm -rf`, etc.) in shell and `command` acceptance checks when `enforcePolicy` is enabled |
-| File policy | `src/policies/filePolicy.ts` | Blocks paths outside workspace root; blocks `.git/` and `node_modules/` writes; flags sensitive paths (`.env`, keys, credentials) |
+| Command policy | `src/policies/commandPolicy.ts` | Blocks destructive commands (force push, hard reset, `rm -rf`, etc.) in shell and `command` acceptance checks when `enforcePolicy` is enabled; also blocks destructive stdio MCP server commands in `PiAgentRunner` |
+| File policy | `src/policies/filePolicy.ts` | Blocks paths outside workspace root; blocks `.git/` and `node_modules/` writes; flags sensitive paths (`.env`, keys, credentials); validates MCP stdio `cwd` against the phase workspace |
 | Approval policy | `src/policies/approvalPolicy.ts` | Records approval requests for risky commands, file deletes, and `manual_approval` checks; supports auto-approve flags for tests/CI |
 
 `PolicyGate` (`src/policies/PolicyGate.ts`) enforces command blocks for `NodeShellRunner` and `command` checks. `ArtifactStore` enforces file policy on orchestrator-managed artifact writes.
@@ -103,6 +105,7 @@ Each run writes an isolated directory under `.runs/<run-id>/` with workflow snap
 | Prompts not redacted before send | Secrets in task text reach the configured endpoint | Pre-send secret scan on composed prompts; workflow validation warnings |
 | Limited secret patterns | Novel token formats may leak into logs | Expand `SECRET_PATTERNS`; allow user-defined patterns |
 | No endpoint allowlist | A typo or hostile `baseUrl`/`OPENAI_BASE_URL` silently receives prompts | Optional allowlist of trusted base URLs; warn on per-agent `baseUrl` overrides |
+| No MCP server allowlist in workflow validation | Workflow YAML can declare `mcpServers` that spawn processes or call HTTP endpoints | Validate stdio commands with `commandPolicy`; document trusted MCP servers; consider workflow-level allowlists |
 | Third-party skills in prompts | Bundled and workspace `skills/` content is injected into prompts | Review skill content before runs on sensitive repos |
 
 Contributions that close these gaps should extend schemas and policies first, then wire enforcement at documented call sites — see [AGENTS.md](../AGENTS.md).
