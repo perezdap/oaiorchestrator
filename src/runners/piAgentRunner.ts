@@ -321,7 +321,7 @@ export class PiAgentRunner implements AgentRunner {
     return {
       id: modelId,
       name: modelId,
-      api: "openai-chat",
+      api: "openai-completions",
       provider: "openai",
       baseUrl,
       reasoning: false,
