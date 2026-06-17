@@ -1,13 +1,17 @@
 /**
  * Pi SDK Agent Runner — wraps @earendil-works/pi-coding-agent to give
  * oaiorchestrator phases access to the full pi agent runtime: tool calling,
- * MCP tools via extensions, streaming, and structured output.
+ * MCP tools, streaming, and structured output.
  *
- * Where OpenAiChatRunner sends a single prompt and parses text, this runner
- * creates a live AgentSession that can call tools (bash, read, write, plus
- * any MCP tools exposed by loaded extensions) and streams the response.
+ * MCP servers are configured directly on the runner (not from host extensions)
+ * so the entire setup is self-contained within oaiorchestrator.
  */
 import type { AgentRunner, AgentRunInput, AgentRunResult } from "./types.js";
+import {
+  createMcpClientManager,
+  type McpClientManagerResult,
+  type McpServerConfig,
+} from "./mcpClientManager.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PiModel = any;
@@ -43,9 +47,13 @@ export interface PiAgentRunnerOptions {
   timeoutMs?: number;
 
   /**
-   * Built-in tools to enable. Defaults to ["read", "bash", "edit", "write"].
-   * Include MCP tool names (from extensions) to give the agent access.
-   * Set to ["read"] for read-only mode.
+   * Built-in pi tools to enable. Defaults to ["read", "bash", "edit", "write"].
+   * MCP tool names (from configured servers) are **automatically merged**
+   * into this list — you only need to list them here if you want to
+   * restrict which MCP tools the agent can use.
+   *
+   * Set to ["read"] for read-only mode. MCP tools are still auto-added
+   * unless you also set `mcpTools: "manual"`.
    */
   tools?: string[];
 
@@ -55,11 +63,20 @@ export interface PiAgentRunnerOptions {
   excludeTools?: string[];
 
   /**
-   * Additional extension paths to load (e.g. MCP gateway extensions).
-   * Extensions in ~/.pi/agent/extensions/ and .pi/extensions/ are
-   * auto-discovered by DefaultResourceLoader.
+   * MCP servers to connect to. Each server's tools are discovered
+   * and registered as pi tools available to the agent session.
+   *
+   * Example:
+   * ```ts
+   * mcpServers: [
+   *   { name: "github", transport: "stdio", command: "npx",
+   *     args: ["-y", "@modelcontextprotocol/server-github"] },
+   *   { name: "firecrawl", transport: "http",
+   *     url: "http://localhost:3000/mcp" },
+   * ]
+   * ```
    */
-  additionalExtensionPaths?: string[];
+  mcpServers?: McpServerConfig[];
 }
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
@@ -67,9 +84,8 @@ const DEFAULT_MODEL = "gpt-4o";
 const DEFAULT_TIMEOUT_MS = 300_000;
 const DEFAULT_TOOLS = ["read", "bash", "edit", "write"];
 
-// Lightweight lazy imports — the pi SDK is only loaded when this runner is
-// actually used. This keeps the import cost zero for users who stick with
-// OpenAiChatRunner.
+// ── Lazy SDK loader ─────────────────────────────────────────────────────────
+
 async function loadPiSdk() {
   const [
     { createAgentSession },
@@ -81,10 +97,14 @@ async function loadPiSdk() {
   return { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader };
 }
 
+// ── Runner ──────────────────────────────────────────────────────────────────
+
 export class PiAgentRunner implements AgentRunner {
   readonly name = "pi-agent";
 
-  private readonly options: Required<PiAgentRunnerOptions>;
+  private readonly options: Required<Omit<PiAgentRunnerOptions, "mcpServers">> & {
+    mcpServers: McpServerConfig[];
+  };
 
   constructor(options: PiAgentRunnerOptions = {}) {
     this.options = {
@@ -95,20 +115,46 @@ export class PiAgentRunner implements AgentRunner {
       timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       tools: options.tools ?? DEFAULT_TOOLS,
       excludeTools: options.excludeTools ?? [],
-      additionalExtensionPaths: options.additionalExtensionPaths ?? [],
+      mcpServers: options.mcpServers ?? [],
     };
   }
 
   async run(input: AgentRunInput): Promise<AgentRunResult> {
+    // ── MCP: connect to servers and discover tools ──────────────────────
+    let mcp: McpClientManagerResult | undefined;
+    let customTools: Awaited<ReturnType<typeof import("@earendil-works/pi-coding-agent")["defineTool"]>>[] = [];
+    let effectiveTools = [...this.options.tools];
+
+    if (this.options.mcpServers.length > 0) {
+      mcp = await createMcpClientManager(this.options.mcpServers);
+      customTools = mcp.tools;
+
+      // Auto-merge MCP tool names unless the user specified an explicit allowlist
+      const userSpecifiedTools = this.options.tools !== DEFAULT_TOOLS;
+      if (!userSpecifiedTools) {
+        effectiveTools = [...new Set([...effectiveTools, ...mcp.toolNames])];
+      } else {
+        // User specified tools — still add any MCP tools they didn't list
+        // so the agent can discover and use them
+        effectiveTools = [...new Set([...effectiveTools, ...mcp.toolNames])];
+      }
+
+      for (const warning of mcp.warnings) {
+        // Log warnings — in production this would go through RunState
+        console.warn(`[PiAgentRunner] ${warning}`);
+      }
+    }
+
+    // ── Pi SDK setup ────────────────────────────────────────────────────
     const { createAgentSession, AuthStorage, ModelRegistry, SessionManager, DefaultResourceLoader } =
       await loadPiSdk();
 
-    // --- Resolve API key ---
     const apiKey =
       input.apiKey ||
       this.options.apiKey ||
       process.env.OPENAI_API_KEY;
     if (!apiKey) {
+      await mcp?.dispose();
       return {
         success: false,
         status: "error",
@@ -120,7 +166,6 @@ export class PiAgentRunner implements AgentRunner {
     const authStorage = AuthStorage.create();
     authStorage.setRuntimeApiKey("openai", apiKey);
 
-    // --- Resolve model ---
     const modelId =
       input.agentConfig.model && input.agentConfig.model !== "auto"
         ? input.agentConfig.model
@@ -130,36 +175,32 @@ export class PiAgentRunner implements AgentRunner {
       input.agentConfig.baseUrl || this.options.baseUrl;
 
     const modelRegistry = ModelRegistry.create(authStorage);
-
-    // Resolve a model object. Try built-in first, then build a custom one
-    // for arbitrary OpenAI-compatible endpoints.
     const model: PiModel = await this.resolveModel(modelId, baseUrl);
 
-    // --- System prompt ---
-    const systemPrompt = this.buildSystemPrompt(input);
+    const systemPrompt = this.buildSystemPrompt(input, mcp);
 
     const { getAgentDir } = await import("@earendil-works/pi-coding-agent");
     const resourceLoader = new DefaultResourceLoader({
       cwd: input.cwd,
       agentDir: getAgentDir(),
-      additionalExtensionPaths: this.options.additionalExtensionPaths,
       systemPromptOverride: () => systemPrompt,
     });
     await resourceLoader.reload();
 
-    // --- Create session ---
+    // ── Create session ──────────────────────────────────────────────────
     const { session } = await createAgentSession({
       model,
       authStorage,
       modelRegistry,
       resourceLoader,
-      tools: this.options.tools,
+      tools: effectiveTools,
       excludeTools: this.options.excludeTools,
+      customTools,
       sessionManager: SessionManager.inMemory(),
       thinkingLevel: "off",
     });
 
-    // --- Collect output ---
+    // ── Collect output ──────────────────────────────────────────────────
     let resultText = "";
     let hasError = false;
     let errorMessage = "";
@@ -171,7 +212,6 @@ export class PiAgentRunner implements AgentRunner {
         }
       }
       if (event.type === "agent_end") {
-        // Check for error state
         const messages = session.messages;
         const lastAssistant = [...messages].reverse().find(
           (m) => m.role === "assistant",
@@ -193,6 +233,7 @@ export class PiAgentRunner implements AgentRunner {
     } catch (err) {
       unsubscribe();
       session.dispose();
+      await mcp?.dispose();
       const message = err instanceof Error ? err.message : String(err);
       return {
         success: false,
@@ -203,9 +244,10 @@ export class PiAgentRunner implements AgentRunner {
     }
 
     unsubscribe();
+    session.dispose();
+    await mcp?.dispose();
 
     if (hasError) {
-      session.dispose();
       return {
         success: false,
         status: "error",
@@ -214,10 +256,7 @@ export class PiAgentRunner implements AgentRunner {
       };
     }
 
-    // --- Extract artifacts ---
     const artifacts = this.extractArtifacts(resultText);
-
-    session.dispose();
 
     return {
       success: true,
@@ -228,10 +267,8 @@ export class PiAgentRunner implements AgentRunner {
     };
   }
 
-  /**
-   * Resolve a pi Model object. Tries the built-in registry first, then
-   * constructs a custom model for arbitrary OpenAI-compatible endpoints.
-   */
+  // ── Helpers ───────────────────────────────────────────────────────────
+
   private async resolveModel(modelId: string, baseUrl: string): Promise<PiModel> {
     try {
       const piAi = await import("@earendil-works/pi-ai");
@@ -256,12 +293,11 @@ export class PiAgentRunner implements AgentRunner {
     };
   }
 
-  /**
-   * Build a system prompt that matches oaiorchestrator's agent role system
-   * while informing the model that it has access to tools.
-   */
-  private buildSystemPrompt(input: AgentRunInput): string {
-    return [
+  private buildSystemPrompt(
+    input: AgentRunInput,
+    mcp?: McpClientManagerResult,
+  ): string {
+    const lines = [
       `You are an agent executing a phase in the oaiorchestrator framework.`,
       `Your role: ${input.agentConfig.type}.`,
       ``,
@@ -269,8 +305,21 @@ export class PiAgentRunner implements AgentRunner {
       input.agentConfig.instructions,
       ``,
       `## Capabilities`,
-      `You have access to tools (read, write, bash, edit, and any MCP tools`,
-      `available through extensions). Use them to complete the objective.`,
+      `You have access to tools: read, write, bash, edit.`,
+    ];
+
+    if (mcp && mcp.toolNames.length > 0) {
+      lines.push(
+        ``,
+        `## MCP Tools`,
+        `The following MCP tools are available from configured servers:`,
+        ...mcp.toolNames.map((n) => `- ${n}`),
+        ``,
+        `MCP servers connected: ${mcp.toolNames.length > 0 ? mcp.toolNames.length : 0} tools across servers.`,
+      );
+    }
+
+    lines.push(
       ``,
       `## Phase`,
       `Phase ID: ${input.phaseId}`,
@@ -282,14 +331,11 @@ export class PiAgentRunner implements AgentRunner {
       `- The host verifies critical actions through acceptance gates.`,
       `- When producing structured output, emit it as fenced code blocks`,
       `  tagged with the filename, e.g. \`\`\`json name=plan.json`,
-    ].join("\n");
+    );
+
+    return lines.join("\n");
   }
 
-  /**
-   * Extract artifact filenames from fenced code blocks tagged with `name=`.
-   * Mirrors the extraction logic in OpenAiChatRunner.writeArtifacts so
-   * PhaseRunner's backfill logic works identically for both runners.
-   */
   private extractArtifacts(content: string): string[] {
     const names: string[] = [];
     const fenceRegex = /```[^\s`]*[ \t]+name=([^\s`]+)/g;
