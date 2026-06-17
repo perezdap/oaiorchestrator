@@ -29,7 +29,15 @@ export interface OpenAiChatRunnerOptions {
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
-const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 300_000;
+
+function resolveTimeoutMs(envValue: string | undefined): number {
+  const parsed = Number(envValue);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return DEFAULT_TIMEOUT_MS;
+}
 
 const SYSTEM_CONTRACT = [
   "You are an agent inside an orchestration framework running on the user's Windows host.",
@@ -59,6 +67,7 @@ export class OpenAiChatRunner implements AgentRunner {
   constructor(private readonly options: OpenAiChatRunnerOptions = {}) {}
 
   async run(input: AgentRunInput): Promise<AgentRunResult> {
+    const timeoutMs = this.options.timeoutMs ?? resolveTimeoutMs(process.env.OPENAI_TIMEOUT_MS);
     const apiKey = firstNonEmpty(
       input.apiKey,
       this.options.apiKey,
@@ -88,7 +97,7 @@ export class OpenAiChatRunner implements AgentRunner {
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      timeoutMs,
     );
 
     try {
@@ -136,7 +145,7 @@ export class OpenAiChatRunner implements AgentRunner {
     } catch (err) {
       const message =
         controller.signal.aborted
-          ? `request timed out after ${this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS}ms`
+          ? `request timed out after ${timeoutMs}ms`
           : err instanceof Error
             ? err.message
             : String(err);
@@ -208,13 +217,16 @@ export class OpenAiChatRunner implements AgentRunner {
    */
   private writeArtifacts(content: string, input: AgentRunInput): string[] {
     const written: string[] = [];
-    const fenceRegex = /```[^\s`]*[ \t]+name=([^\s`]+)[^\n]*\n([\s\S]*?)```/g;
+    const fenceRegex = /```[^\s`]*(?:[ \t]+name=([^\s`]+))?[^\n]*\n(?:name=([^\s`\n]+)\n)?([\s\S]*?)```/g;
     const artifactsRoot = resolve(input.artifactsDir);
 
     let match: RegExpExecArray | null;
     while ((match = fenceRegex.exec(content)) !== null) {
-      const name = match[1];
-      const body = match[2];
+      const name = match[1] ?? match[2];
+      const body = match[3];
+      if (!name) {
+        continue;
+      }
       const target = resolve(join(artifactsRoot, name));
       if (target !== artifactsRoot && !target.startsWith(artifactsRoot + "\\") && !target.startsWith(artifactsRoot + "/")) {
         continue;
