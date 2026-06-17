@@ -34,6 +34,8 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@earendil-works/pi-ai": "^0.79.6",
+    "@earendil-works/pi-coding-agent": "^0.79.6",
     "commander": "^13.1.0",
     "yaml": "^2.7.0",
     "zod": "^3.24.2"
