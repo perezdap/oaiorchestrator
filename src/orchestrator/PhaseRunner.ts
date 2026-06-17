@@ -63,6 +63,7 @@ export class PhaseRunner {
         skillIds.length > 0
           ? this.skillResolver.resolve(skillIds, { workspaceRoot: this.options.cwd })
           : undefined;
+      const resolvedContext = this.resolvePhaseContext(phase.context);
 
       const prompt = this.promptComposer.composePhasePrompt({
         phase: {
@@ -70,7 +71,7 @@ export class PhaseRunner {
           objective: phase.objective,
           inputs: phase.inputs,
           outputs: phase.outputs,
-          context: phase.context,
+          context: resolvedContext,
         },
         agentConfig,
         taskContext: this.options.taskContext,
@@ -91,7 +92,7 @@ export class PhaseRunner {
           artifactsDir,
           context: {
             ...this.options.taskContext,
-            ...(phase.context ?? {}),
+            ...resolvedContext,
           },
           apiKey: this.options.apiKey,
           skills,
@@ -233,5 +234,19 @@ export class PhaseRunner {
         };
       }
     }
+  }
+
+  private resolvePhaseContext(
+    context?: Record<string, string>,
+  ): Record<string, string> | undefined {
+    if (!context) return undefined;
+
+    const resolved: Record<string, string> = {};
+    for (const [key, value] of Object.entries(context)) {
+      resolved[key] = value.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, (_match, inputKey: string) => {
+        return this.options.taskContext[inputKey] ?? "";
+      });
+    }
+    return resolved;
   }
 }

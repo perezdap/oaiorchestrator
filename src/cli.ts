@@ -20,6 +20,28 @@ function readPackageVersion(): string {
   }
 }
 
+function collectOption(value: string, previous: string[]): string[] {
+  previous.push(value);
+  return previous;
+}
+
+function parseKeyValuePairs(pairs: string[], label: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const pair of pairs) {
+    const eqIndex = pair.indexOf("=");
+    if (eqIndex <= 0) {
+      throw new Error(`Invalid ${label} value \"${pair}\". Expected key=value.`);
+    }
+    const key = pair.slice(0, eqIndex).trim();
+    const value = pair.slice(eqIndex + 1);
+    if (!key) {
+      throw new Error(`Invalid ${label} value \"${pair}\". Expected key=value.`);
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
 const program = new Command();
 
 program
@@ -33,6 +55,13 @@ program
   .requiredOption("-w, --workflow <path>", "Path to workflow YAML/JSON file")
   .option("-t, --task <task>", "Task description")
   .option("-r, --repo-path <path>", "Repository/workspace path", process.cwd())
+  .option("--input <key=value>", "Additional workflow input", collectOption, [])
+  .option(
+    "--input-file <key=path>",
+    "Additional workflow input loaded from a file",
+    collectOption,
+    [],
+  )
   .option("--run-id <id>", "Custom run ID")
   .option("--dry-run", "Validate and simulate without calling agents", false)
   .option("-q, --quiet", "Suppress progress output", false)
@@ -40,6 +69,8 @@ program
     workflow: string;
     task?: string;
     repoPath: string;
+    input: string[];
+    inputFile: string[];
     runId?: string;
     dryRun: boolean;
     quiet: boolean;
@@ -51,6 +82,15 @@ program
     }
 
     const repoPath = resolve(opts.repoPath);
+    const extraInputs = parseKeyValuePairs(opts.input ?? [], "--input");
+    const fileInputs = parseKeyValuePairs(opts.inputFile ?? [], "--input-file");
+    for (const [key, filePathValue] of Object.entries(fileInputs)) {
+      const resolvedPath = resolve(filePathValue);
+      if (!existsSync(resolvedPath)) {
+        throw new Error(`Input file not found for ${key}: ${resolvedPath}`);
+      }
+      extraInputs[key] = readFileSync(resolvedPath, "utf-8");
+    }
 
     const workflow = parseWorkflowFile(workflowPath, { workspaceRoot: repoPath });
     const orchestrator = new Orchestrator({
@@ -64,6 +104,7 @@ program
       inputs: {
         task: opts.task,
         repoPath,
+        ...extraInputs,
       },
       runId: opts.runId,
     });
